@@ -424,18 +424,16 @@ export default function MyPage() {
     return "#7DE2D1"; // 가장 밝은 색상 유지
   };
 
-  // 잔디 그래프 데이터 생성 (1월 1일부터 12월 31일까지)
-  const startDate = new Date(selectedYear, 0, 1); // 1월 1일
-  const endDate = new Date(selectedYear, 11, 31); // 12월 31일
+  // 잔디 그래프 데이터 생성 (2025년 1월 1일부터 12월 31일까지)
+  const targetYear = 2025;
+  const startDate = new Date(targetYear, 0, 1); // 2025년 1월 1일
+  const endDate = new Date(targetYear, 11, 31); // 2025년 12월 31일
 
   // 1월 1일이 무슨 요일인지 확인 (0=일요일, 1=월요일, ...)
   const startDayOfWeek = startDate.getDay();
 
-  // 전체 일수 계산
-  const totalDays =
-    Math.ceil(
-      (endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24)
-    ) + 1;
+  // 전체 일수 계산 (2025년은 평년이므로 365일)
+  const totalDays = 365;
 
   // 주 수 계산 (첫 주의 시작 요일 고려)
   const weeks = Math.ceil((totalDays + startDayOfWeek) / 7);
@@ -447,13 +445,24 @@ export default function MyPage() {
       if (dayIndex < 0 || dayIndex >= totalDays) {
         return null; // 범위 밖의 날짜
       }
-      const date = new Date(startDate);
+      const date = new Date(targetYear, 0, 1);
       date.setDate(date.getDate() + dayIndex);
-      const dateString = date.toISOString().split("T")[0];
-      const month = date.getMonth();
+
+      // 로컬 시간 기준으로 날짜 문자열 생성 (YYYY-MM-DD)
+      const year = date.getFullYear();
+      const month = String(date.getMonth() + 1).padStart(2, "0");
+      const dayOfMonth = String(date.getDate()).padStart(2, "0");
+      const dateString = `${year}-${month}-${dayOfMonth}`;
+
+      // 날짜가 2025년인지 확인
+      if (date.getFullYear() !== targetYear) {
+        return null;
+      }
+
+      const monthIndex = date.getMonth();
       const grass = getGrassData(dateString);
       const score = getGrassActivity(dateString);
-      return { score, month, dateString, grass };
+      return { score, month: monthIndex, dateString, grass };
     })
   );
 
@@ -461,16 +470,18 @@ export default function MyPage() {
     .flat()
     .filter((item) => item !== null && item.score > 0).length;
 
-  // 월 라벨 생성 (각 주의 첫 날짜가 속한 월 확인)
+  // 월 라벨 생성 (각 월의 첫 번째 주에만 표시)
   const monthLabels: (number | null)[] = [];
+  let lastMonth = -1;
   grassGrid.forEach((week, weekIndex) => {
     const firstDayInWeek = week.find((item) => item !== null);
     if (firstDayInWeek) {
       const date = new Date(firstDayInWeek.dateString);
-      const month = date.getMonth() + 1; // 1-12
-      // 해당 주의 첫 날짜가 해당 월의 1일~7일 사이인 경우에만 표시
-      if (date.getDate() <= 7) {
-        monthLabels[weekIndex] = month;
+      const month = date.getMonth(); // 0-11
+      // 이전 주와 다른 월이면 라벨 표시 (각 월의 첫 번째 주에만)
+      if (month !== lastMonth) {
+        monthLabels[weekIndex] = month + 1; // 1-12로 변환
+        lastMonth = month;
       } else {
         monthLabels[weekIndex] = null;
       }
