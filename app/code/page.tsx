@@ -5,118 +5,250 @@ import type React from "react";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
-import { Upload, Code2, Network, FileJson } from "lucide-react";
+import { Upload, Code2, Network, FileJson, Download } from "lucide-react";
 import Link from "next/link";
 import Header from "@/components/Header";
 
+// 분석할 파일 확장자 목록
+const TARGET_EXTENSIONS = [
+  ".mjs",
+  ".js",
+  ".ts",
+  ".py",
+  ".java",
+  ".go",
+  ".json",
+  ".yaml",
+  ".yml",
+  ".sh",
+  ".rb",
+  ".php",
+  ".html",
+  ".css",
+  ".scss",
+  ".md",
+  ".jsx",
+  ".tsx",
+];
+
+// 제외할 디렉토리
+const IGNORE_DIRS = new Set([
+  "node_modules",
+  "venv",
+  ".git",
+  "__pycache__",
+  "dist",
+  "build",
+  ".idea",
+  ".vscode",
+  "coverage",
+  "frontend",
+  "front",
+  "client",
+  "web",
+]);
+
+// 제외할 파일
+const IGNORE_FILES = new Set(["package-lock.json", "yarn.lock", ".DS_Store"]);
+
 export default function CodePage() {
   const [isUploading, setIsUploading] = useState(false);
+  const [progress, setProgress] = useState<string>("");
   const router = useRouter();
 
+  // 파일이 분석 대상인지 확인
+  const shouldCollectFile = (file: File): boolean => {
+    const fileName = file.name;
+    if (IGNORE_FILES.has(fileName)) {
+      return false;
+    }
+    const ext = fileName.substring(fileName.lastIndexOf(".")).toLowerCase();
+    return TARGET_EXTENSIONS.includes(ext);
+  };
+
+  // 파일 경로에서 디렉토리 제외 여부 확인
+  const shouldIgnorePath = (filePath: string): boolean => {
+    const parts = filePath.split("/");
+    return parts.some((part) => IGNORE_DIRS.has(part));
+  };
+
+  // 파일을 읽어서 내용 반환
+  const readFileContent = (file: File): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        resolve(e.target?.result as string);
+      };
+      reader.onerror = reject;
+      reader.readAsText(file, "utf-8");
+    });
+  };
+
+  // 폴더 업로드 처리 및 분석
   const handleFolderUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (!files || files.length === 0) return;
 
     setIsUploading(true);
+    setProgress("파일을 읽는 중...");
 
     try {
-      // FormData 생성
-      const formData = new FormData();
-      Array.from(files).forEach((file) => {
-        formData.append("files", file);
+      // 파일 필터링 및 정렬
+      const fileArray = Array.from(files);
+      const validFiles = fileArray.filter((file) => {
+        // webkitRelativePath를 사용하여 상대 경로 확인
+        const relativePath = (file as any).webkitRelativePath || file.name;
+        return shouldCollectFile(file) && !shouldIgnorePath(relativePath);
       });
 
-      // AI 서버로 분석 요청 (실제 API 엔드포인트로 변경 필요)
-      const API_BASE_URL =
-        process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080";
+      if (validFiles.length === 0) {
+        throw new Error("분석할 수 있는 파일이 없습니다.");
+      }
 
-      // TODO: 실제 AI 서버 엔드포인트로 변경
-      // const response = await fetch(`${API_BASE_URL}/api/analyze`, {
-      //   method: "POST",
-      //   body: formData,
-      //   headers: {
-      //     Authorization: `Bearer ${getToken()}`,
-      //   },
-      // })
-      //
-      // if (!response.ok) throw new Error("분석에 실패했습니다")
-      // const analysisResult = await response.json()
+      setProgress(`${validFiles.length}개 파일 분석 중...`);
 
-      // 임시: mock 데이터 (실제로는 AI 서버에서 받은 데이터)
-      const mockAnalysisResult = {
-        api: [
-          {
-            category: "auth",
-            categoryName: "Auth Feature",
-            endpoints: [
-              {
-                method: "POST",
-                url: "/auth/signup",
-                function: "authController.signup",
-                children: [
-                  {
-                    function: "body validation",
-                    file: "middleware/validator.mjs",
-                    description: "Validation of Signup Request Body",
-                    children: [],
-                  },
-                  {
-                    function: "findByUserid",
-                    file: "data/auth.mjs",
-                    description: "Check for Existing UserID",
-                    children: [],
-                  },
-                  {
-                    function: "bcrypt hash",
-                    file: "bcrypt",
-                    description: "Hash Password",
-                    children: [],
-                  },
-                  {
-                    function: "createUser",
-                    file: "data/auth.mjs",
-                    description: "Create New User",
-                    children: [],
-                  },
-                  {
-                    function: "createJwtToken",
-                    file: "middleware/auth.mjs",
-                    description: "Generate JWT Token",
-                    children: [],
-                  },
-                  {
-                    function: "res.send",
-                    file: "app.mjs",
-                    description: "Send JWT Token and User ID",
-                    children: [],
-                  },
-                ],
-              },
-            ],
+      // 파일 내용 읽기 및 병합
+      const chunks: string[] = [];
+      let totalLines = 0;
+      let totalChars = 0;
+      const maxLines = 1700;
+      const maxChars = 50000;
+
+      for (let i = 0; i < validFiles.length; i++) {
+        const file = validFiles[i];
+        const relativePath = (file as any).webkitRelativePath || file.name;
+
+        // 제한 확인
+        if (totalLines >= maxLines || totalChars >= maxChars) {
+          break;
+        }
+
+        try {
+          const content = await readFileContent(file);
+          const lines = content.split("\n");
+          const remainLines = maxLines - totalLines;
+          const takeLines = lines.slice(0, Math.max(0, remainLines));
+          const fileContent = takeLines.join("\n");
+
+          // 문자 제한 적용
+          const remainChars = maxChars - totalChars;
+          const finalContent =
+            fileContent.length > remainChars
+              ? fileContent.substring(0, Math.max(0, remainChars))
+              : fileContent;
+
+          if (finalContent.trim().length === 0) {
+            continue;
+          }
+
+          // 파일 블록 생성
+          const block = [
+            "===== FILE START =====",
+            `PATH: ${relativePath}`,
+            "----- CODE -----",
+            finalContent.trim(),
+            "===== FILE END =====",
+            "",
+          ].join("\n");
+
+          chunks.push(block);
+          totalLines += finalContent.split("\n").length;
+          totalChars += finalContent.length;
+
+          // 진행 상황 업데이트
+          if ((i + 1) % 10 === 0) {
+            setProgress(`${i + 1}/${validFiles.length}개 파일 처리 중...`);
+          }
+        } catch (error) {
+          console.warn(`파일 읽기 실패: ${relativePath}`, error);
+          continue;
+        }
+      }
+
+      // 최종 병합된 내용 생성
+      const mergedContent = chunks.join("\n");
+
+      setProgress("AI 모델 서버로 전송 중...");
+
+      // aimodels 서버 URL (환경 변수 또는 기본값)
+      const AIMODELS_BASE_URL =
+        process.env.NEXT_PUBLIC_AIMODELS_URL || "http://localhost:8000";
+
+      try {
+        // aimodels의 /visualize 엔드포인트로 POST 요청
+        const response = await fetch(`${AIMODELS_BASE_URL}/visualize`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
           },
-        ],
-      };
+          body: JSON.stringify({
+            code: mergedContent,
+          }),
+        });
 
-      // 분석 결과를 localStorage에 저장
-      const dataString = JSON.stringify(mockAnalysisResult);
-      localStorage.setItem("analysisResult", dataString);
+        if (!response.ok) {
+          const errorText = await response.text();
+          throw new Error(
+            `AI 모델 서버 오류 (${response.status}): ${errorText}`
+          );
+        }
 
-      // 저장 확인
-      console.log("분석 결과 저장 완료:", {
-        hasData: !!localStorage.getItem("analysisResult"),
-        dataLength: dataString.length,
-      });
+        const analysisResult = await response.json();
+        console.log("분석 결과:", analysisResult);
 
-      // 약간의 지연 후 visualize 페이지로 이동 (localStorage 저장이 완료되도록)
-      await new Promise((resolve) => setTimeout(resolve, 100));
+        // 데이터 구조 검증
+        if (
+          !analysisResult ||
+          !analysisResult.api ||
+          !Array.isArray(analysisResult.api)
+        ) {
+          console.error("잘못된 데이터 형식:", analysisResult);
+          throw new Error(
+            "서버에서 받은 데이터 형식이 올바르지 않습니다. api 필드가 없거나 배열이 아닙니다."
+          );
+        }
 
-      // visualize 페이지로 이동
-      router.push("/visualize");
+        // 결과를 localStorage에 저장
+        localStorage.setItem("analysisResult", JSON.stringify(analysisResult));
+
+        setProgress("완료!");
+        alert(
+          `분석 완료!\n- 처리된 파일: ${chunks.length}개\n- 총 라인 수: ${totalLines}줄\n- 총 문자 수: ${totalChars}자\n\n시각화 페이지로 이동합니다.`
+        );
+
+        // /visualize 페이지로 이동
+        router.push("/visualize");
+      } catch (apiError) {
+        console.error("AI 모델 서버 요청 실패:", apiError);
+        // API 요청 실패 시에도 파일 다운로드는 진행
+        const blob = new Blob([mergedContent], {
+          type: "text/plain;charset=utf-8",
+        });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement("a");
+        link.href = url;
+        link.download = "project_full_context.txt";
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        URL.revokeObjectURL(url);
+
+        throw new Error(
+          `AI 모델 서버 연결 실패: ${
+            apiError instanceof Error ? apiError.message : "알 수 없는 오류"
+          }\n\n파일은 다운로드되었습니다.`
+        );
+      }
     } catch (error) {
       console.error("분석 실패:", error);
-      alert(error instanceof Error ? error.message : "분석에 실패했습니다");
+      alert(
+        error instanceof Error ? error.message : "폴더 분석에 실패했습니다"
+      );
     } finally {
       setIsUploading(false);
+      setProgress("");
+      // input 초기화
+      e.target.value = "";
     }
   };
 
@@ -169,13 +301,28 @@ export default function CodePage() {
                       지원합니다
                     </p>
                     {isUploading && (
-                      <div className="flex items-center justify-center gap-3">
-                        <div
-                          className="w-2 h-2 rounded-full animate-pulse"
-                          style={{ backgroundColor: "#7DE2D1" }}
-                        ></div>
-                        <span className="text-slate-400 text-sm font-medium">
-                          분석 중입니다...
+                      <div className="flex flex-col items-center justify-center gap-3">
+                        <div className="flex items-center gap-3">
+                          <div
+                            className="w-2 h-2 rounded-full animate-pulse"
+                            style={{ backgroundColor: "#7DE2D1" }}
+                          ></div>
+                          <span className="text-slate-400 text-sm font-medium">
+                            {progress || "분석 중입니다..."}
+                          </span>
+                        </div>
+                        {progress && (
+                          <div className="text-xs text-slate-500">
+                            완료되면 자동으로 다운로드됩니다
+                          </div>
+                        )}
+                      </div>
+                    )}
+                    {!isUploading && (
+                      <div className="flex items-center justify-center gap-2 text-slate-500 text-sm mt-4">
+                        <Download className="w-4 h-4" />
+                        <span>
+                          분석 후 합쳐진 파일이 자동으로 다운로드됩니다
                         </span>
                       </div>
                     )}

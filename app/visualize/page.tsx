@@ -71,9 +71,28 @@ export default function VisualizePage() {
             const parsed = JSON.parse(storedData);
             console.log("파싱된 데이터:", parsed);
 
-            // 데이터 구조 검증
-            if (!parsed || !parsed.api || !Array.isArray(parsed.api)) {
-              throw new Error("잘못된 데이터 형식입니다.");
+            // 데이터 구조 검증 (더 상세한 검증)
+            if (!parsed) {
+              throw new Error("데이터가 비어있습니다.");
+            }
+
+            if (!parsed.api) {
+              console.error("파싱된 데이터에 'api' 필드가 없습니다:", parsed);
+              throw new Error("데이터에 'api' 필드가 없습니다.");
+            }
+
+            if (!Array.isArray(parsed.api)) {
+              console.error(
+                "'api' 필드가 배열이 아닙니다:",
+                typeof parsed.api,
+                parsed.api
+              );
+              throw new Error("'api' 필드가 배열 형식이 아닙니다.");
+            }
+
+            if (parsed.api.length === 0) {
+              console.warn("'api' 배열이 비어있습니다.");
+              // 빈 배열도 허용하되 경고만 표시
             }
 
             setAnalysisData(parsed);
@@ -342,9 +361,7 @@ export default function VisualizePage() {
       <div className="flex flex-col lg:flex-row flex-1 pt-20">
         {/* 좌측 사이드바: 카테고리 및 엔드포인트 목록 */}
         <aside
-          className={`w-full lg:w-80 border-r border-[#2B2C28] overflow-y-auto transition-all ${
-            isMobileMenuOpen ? "hidden lg:block" : "block"
-          }`}
+          className="w-full lg:w-80 border-r border-[#2B2C28] overflow-y-auto transition-all block"
           style={{
             backgroundColor: "#1a1a18",
             maxHeight: "calc(100vh - 80px)",
