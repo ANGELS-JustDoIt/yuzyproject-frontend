@@ -3,7 +3,6 @@ import { useState, useEffect } from "react";
 import type React from "react";
 
 import {
-  Code2,
   Bell,
   Calendar,
   Archive,
@@ -16,7 +15,6 @@ import {
   Edit,
   Trash2,
 } from "lucide-react";
-import Link from "next/link";
 import Header from "@/components/Header";
 
 // DB 스키마에 맞춘 타입 정의
@@ -190,6 +188,7 @@ export default function MyPage() {
   >(null);
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [schedules, setSchedules] = useState<Schedule[]>([]);
+  const [selectedYear, setSelectedYear] = useState(2025);
 
   const [editingSchedule, setEditingSchedule] = useState<Schedule | null>(null);
   const [showScheduleModal, setShowScheduleModal] = useState(false);
@@ -305,7 +304,9 @@ export default function MyPage() {
             setSchedules(
               schedulesData.schedules.map((s: Record<string, unknown>) => {
                 // scheduleDate를 YYYY-MM-DD 형식으로 정규화
-                let scheduleDate = s.scheduleDate || s.schedule_date || "";
+                let scheduleDate: string | Date = (s.scheduleDate ||
+                  s.schedule_date ||
+                  "") as string | Date;
                 if (scheduleDate instanceof Date) {
                   // Date 객체인 경우 로컬 날짜를 사용하여 타임존 문제 해결
                   const year = scheduleDate.getFullYear();
@@ -317,14 +318,14 @@ export default function MyPage() {
                   scheduleDate = `${year}-${month}-${day}`;
                 } else if (typeof scheduleDate === "string") {
                   // 문자열인 경우 ISO 형식이면 날짜 부분만 추출
-                  scheduleDate = scheduleDate.split("T")[0];
+                  let dateStr = scheduleDate.split("T")[0];
                   // 만약 문자열이 "2025-01-09" 형식이지만 실제로는 "2025-01-10"이어야 하는 경우
                   // (타임존 변환으로 인해 하루 전으로 표시된 경우) 복구
                   // 하지만 이는 정확하지 않으므로, Date 객체로 변환하여 로컬 날짜 사용
-                  if (scheduleDate.match(/^\d{4}-\d{2}-\d{2}$/)) {
+                  if (dateStr.match(/^\d{4}-\d{2}-\d{2}$/)) {
                     // 문자열을 Date 객체로 변환할 때 타임존 문제를 피하기 위해
                     // 로컬 시간대 기준으로 파싱
-                    const [y, m, d] = scheduleDate.split("-").map(Number);
+                    const [y, m, d] = dateStr.split("-").map(Number);
                     const dateObj = new Date(y, m - 1, d);
                     const year = dateObj.getFullYear();
                     const month = String(dateObj.getMonth() + 1).padStart(
@@ -332,8 +333,9 @@ export default function MyPage() {
                       "0"
                     );
                     const day = String(dateObj.getDate()).padStart(2, "0");
-                    scheduleDate = `${year}-${month}-${day}`;
+                    dateStr = `${year}-${month}-${day}`;
                   }
+                  scheduleDate = dateStr;
                 }
                 return {
                   scheduleId: Number(s.scheduleId || s.schedule_id || 0),
@@ -367,9 +369,9 @@ export default function MyPage() {
     loadData();
   }, []);
 
-  // 잔디 계산
-  const getGrassActivity = (date: string) => {
-    if (!grassData || grassData.length === 0) return 0;
+  // 잔디 데이터 가져오기
+  const getGrassData = (date: string): Grass | null => {
+    if (!grassData || grassData.length === 0) return null;
     // 날짜 형식 정규화 (YYYY-MM-DD)
     const normalizedDate = date.split("T")[0];
     const grass = grassData.find((g) => {
@@ -377,6 +379,12 @@ export default function MyPage() {
       const grassDateNormalized = String(g.grass_date).split("T")[0];
       return grassDateNormalized === normalizedDate;
     });
+    return grass || null;
+  };
+
+  // 활동 점수 계산
+  const getGrassActivity = (date: string) => {
+    const grass = getGrassData(date);
     if (!grass) return 0;
     let score = 0;
     if (grass.is_login) score += 1;
@@ -386,29 +394,95 @@ export default function MyPage() {
     return score;
   };
 
-  const getGrassColor = (score: number) => {
-    if (score === 0) return "#1a1a18";
-    if (score === 1) return "#0a3d2e";
-    if (score === 2) return "#1a5c47";
-    if (score === 3) return "#339989";
-    return "#7DE2D1";
+  // 활동 목록 텍스트 생성
+  const getActivityText = (grass: Grass | null): string => {
+    if (!grass) return "활동 없음";
+    const activities: string[] = [];
+    if (grass.is_login) activities.push("로그인");
+    if (grass.is_code) activities.push("코드 분석");
+    if (grass.is_board) activities.push("게시글 작성");
+    if (grass.is_reply) activities.push("댓글 작성");
+    return activities.length > 0 ? activities.join(", ") : "활동 없음";
   };
 
-  // 잔디 그래프 데이터 생성
-  const weeks = 53;
+  // 홀수/짝수 월별 기본 회색 색상 (투명도 적용)
+  const getDefaultGrayColor = (month: number) => {
+    // 홀수 월(1,3,5,7,9,11월)과 짝수 월(2,4,6,8,10,12월)로 구분
+    // month는 0-11이므로, +1해서 1-12로 변환
+    const monthNum = month + 1;
+    const isOdd = monthNum % 2 === 1; // 홀수 월
+    const grayValue = isOdd ? 100 : 160; // 홀수 월: 100, 짝수 월: 160 (더 큰 대비)
+    const opacity = 0.25; // 투명도 25% (더 투명하게)
+    return `rgba(${grayValue}, ${grayValue}, ${grayValue}, ${opacity})`;
+  };
+
+  const getGrassColor = (score: number, month: number) => {
+    if (score === 0) return getDefaultGrayColor(month);
+    if (score === 1) return "#2d5a4e"; // 더 연한 녹색
+    if (score === 2) return "#4a7c6f"; // 더 연한 녹색
+    if (score === 3) return "#5ba89a"; // 더 연한 녹색
+    return "#7DE2D1"; // 가장 밝은 색상 유지
+  };
+
+  // 잔디 그래프 데이터 생성 (1월 1일부터 12월 31일까지)
+  const startDate = new Date(selectedYear, 0, 1); // 1월 1일
+  const endDate = new Date(selectedYear, 11, 31); // 12월 31일
+
+  // 1월 1일이 무슨 요일인지 확인 (0=일요일, 1=월요일, ...)
+  const startDayOfWeek = startDate.getDay();
+
+  // 전체 일수 계산
+  const totalDays =
+    Math.ceil(
+      (endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24)
+    ) + 1;
+
+  // 주 수 계산 (첫 주의 시작 요일 고려)
+  const weeks = Math.ceil((totalDays + startDayOfWeek) / 7);
   const days = 7;
+
   const grassGrid = Array.from({ length: weeks }, (_, week) =>
     Array.from({ length: days }, (_, day) => {
-      const date = new Date();
-      date.setDate(date.getDate() - ((weeks - week) * 7 + (days - day)));
+      const dayIndex = week * 7 + day - startDayOfWeek;
+      if (dayIndex < 0 || dayIndex >= totalDays) {
+        return null; // 범위 밖의 날짜
+      }
+      const date = new Date(startDate);
+      date.setDate(date.getDate() + dayIndex);
       const dateString = date.toISOString().split("T")[0];
-      return getGrassActivity(dateString);
+      const month = date.getMonth();
+      const grass = getGrassData(dateString);
+      const score = getGrassActivity(dateString);
+      return { score, month, dateString, grass };
     })
   );
 
   const totalContributions = grassGrid
     .flat()
-    .reduce((sum, count) => sum + count, 0);
+    .filter((item) => item !== null && item.score > 0).length;
+
+  // 월 라벨 생성 (각 주의 첫 날짜가 속한 월 확인)
+  const monthLabels: (number | null)[] = [];
+  grassGrid.forEach((week, weekIndex) => {
+    const firstDayInWeek = week.find((item) => item !== null);
+    if (firstDayInWeek) {
+      const date = new Date(firstDayInWeek.dateString);
+      const month = date.getMonth() + 1; // 1-12
+      // 해당 주의 첫 날짜가 해당 월의 1일~7일 사이인 경우에만 표시
+      if (date.getDate() <= 7) {
+        monthLabels[weekIndex] = month;
+      } else {
+        monthLabels[weekIndex] = null;
+      }
+    } else {
+      monthLabels[weekIndex] = null;
+    }
+  });
+
+  // 년도 변경 함수
+  const changeYear = (direction: "prev" | "next") => {
+    setSelectedYear((prev) => prev + (direction === "next" ? 1 : -1));
+  };
 
   // 캘린더 관련
   const getDaysInMonth = (date: Date) => {
@@ -438,7 +512,9 @@ export default function MyPage() {
         setSchedules(
           schedulesData.schedules.map((s: Record<string, unknown>) => {
             // scheduleDate를 YYYY-MM-DD 형식으로 정규화
-            let scheduleDate = s.scheduleDate || s.schedule_date || "";
+            let scheduleDate: string | Date = (s.scheduleDate ||
+              s.schedule_date ||
+              "") as string | Date;
             if (scheduleDate instanceof Date) {
               // Date 객체인 경우 로컬 날짜를 사용하여 타임존 문제 해결
               const year = scheduleDate.getFullYear();
@@ -449,15 +525,16 @@ export default function MyPage() {
               const day = String(scheduleDate.getDate()).padStart(2, "0");
               scheduleDate = `${year}-${month}-${day}`;
             } else if (typeof scheduleDate === "string") {
-              scheduleDate = scheduleDate.split("T")[0];
+              let dateStr = scheduleDate.split("T")[0];
               // Date 객체로 변환하여 로컬 날짜로 복구
-              if (scheduleDate.match(/^\d{4}-\d{2}-\d{2}$/)) {
-                const dateObj = new Date(scheduleDate + "T00:00:00");
+              if (dateStr.match(/^\d{4}-\d{2}-\d{2}$/)) {
+                const dateObj = new Date(dateStr + "T00:00:00");
                 const year = dateObj.getFullYear();
                 const month = String(dateObj.getMonth() + 1).padStart(2, "0");
                 const day = String(dateObj.getDate()).padStart(2, "0");
-                scheduleDate = `${year}-${month}-${day}`;
+                dateStr = `${year}-${month}-${day}`;
               }
+              scheduleDate = dateStr;
             }
             return {
               scheduleId: Number(s.scheduleId || s.schedule_id || 0),
@@ -493,7 +570,9 @@ export default function MyPage() {
         setSchedules(
           schedulesData.schedules.map((s: Record<string, unknown>) => {
             // scheduleDate를 YYYY-MM-DD 형식으로 정규화
-            let scheduleDate = s.scheduleDate || s.schedule_date || "";
+            let scheduleDate: string | Date = (s.scheduleDate ||
+              s.schedule_date ||
+              "") as string | Date;
             if (scheduleDate instanceof Date) {
               // Date 객체인 경우 로컬 날짜를 사용하여 타임존 문제 해결
               const year = scheduleDate.getFullYear();
@@ -504,15 +583,16 @@ export default function MyPage() {
               const day = String(scheduleDate.getDate()).padStart(2, "0");
               scheduleDate = `${year}-${month}-${day}`;
             } else if (typeof scheduleDate === "string") {
-              scheduleDate = scheduleDate.split("T")[0];
+              let dateStr = scheduleDate.split("T")[0];
               // Date 객체로 변환하여 로컬 날짜로 복구
-              if (scheduleDate.match(/^\d{4}-\d{2}-\d{2}$/)) {
-                const dateObj = new Date(scheduleDate + "T00:00:00");
+              if (dateStr.match(/^\d{4}-\d{2}-\d{2}$/)) {
+                const dateObj = new Date(dateStr + "T00:00:00");
                 const year = dateObj.getFullYear();
                 const month = String(dateObj.getMonth() + 1).padStart(2, "0");
                 const day = String(dateObj.getDate()).padStart(2, "0");
-                scheduleDate = `${year}-${month}-${day}`;
+                dateStr = `${year}-${month}-${day}`;
               }
+              scheduleDate = dateStr;
             }
             return {
               scheduleId: Number(s.scheduleId || s.schedule_id || 0),
@@ -554,11 +634,21 @@ export default function MyPage() {
 
     try {
       const { myApi } = await import("@/lib/api");
-      await myApi.createSchedule({
-        title,
-        description: description || undefined,
-        scheduleDate,
-      });
+
+      // 수정 중이면 수정 API 호출, 아니면 생성 API 호출
+      if (editingSchedule) {
+        await myApi.updateSchedule(editingSchedule.scheduleId, {
+          title,
+          description: description || undefined,
+          scheduleDate,
+        });
+      } else {
+        await myApi.createSchedule({
+          title,
+          description: description || undefined,
+          scheduleDate,
+        });
+      }
 
       // 일정 목록 다시 조회
       const startDate = `${year}-${String(month).padStart(2, "0")}-01`;
@@ -568,7 +658,9 @@ export default function MyPage() {
         setSchedules(
           schedulesData.schedules.map((s: Record<string, unknown>) => {
             // scheduleDate를 YYYY-MM-DD 형식으로 정규화
-            let scheduleDate = s.scheduleDate || s.schedule_date || "";
+            let scheduleDate: string | Date = (s.scheduleDate ||
+              s.schedule_date ||
+              "") as string | Date;
             if (scheduleDate instanceof Date) {
               // Date 객체인 경우 로컬 날짜를 사용하여 타임존 문제 해결
               const year = scheduleDate.getFullYear();
@@ -579,15 +671,16 @@ export default function MyPage() {
               const day = String(scheduleDate.getDate()).padStart(2, "0");
               scheduleDate = `${year}-${month}-${day}`;
             } else if (typeof scheduleDate === "string") {
-              scheduleDate = scheduleDate.split("T")[0];
+              let dateStr = scheduleDate.split("T")[0];
               // Date 객체로 변환하여 로컬 날짜로 복구
-              if (scheduleDate.match(/^\d{4}-\d{2}-\d{2}$/)) {
-                const dateObj = new Date(scheduleDate + "T00:00:00");
+              if (dateStr.match(/^\d{4}-\d{2}-\d{2}$/)) {
+                const dateObj = new Date(dateStr + "T00:00:00");
                 const year = dateObj.getFullYear();
                 const month = String(dateObj.getMonth() + 1).padStart(2, "0");
                 const day = String(dateObj.getDate()).padStart(2, "0");
-                scheduleDate = `${year}-${month}-${day}`;
+                dateStr = `${year}-${month}-${day}`;
               }
+              scheduleDate = dateStr;
             }
             return {
               scheduleId: Number(s.scheduleId || s.schedule_id || 0),
@@ -787,22 +880,73 @@ export default function MyPage() {
                 <h2 className="text-lg font-semibold text-white">
                   {totalContributions}개의 성장 잔디
                 </h2>
-                <div className="flex items-center gap-2 text-xs text-slate-500">
-                  <span className="mr-2">2025년 기준</span>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => changeYear("prev")}
+                    className="p-1 hover:bg-[#2B2C28] rounded transition"
+                    title="이전 년도"
+                  >
+                    <ChevronLeft className="w-4 h-4 text-slate-400" />
+                  </button>
+                  <span className="text-xs text-slate-500 min-w-[80px] text-center">
+                    {selectedYear}년 기준
+                  </span>
+                  <button
+                    onClick={() => changeYear("next")}
+                    className="p-1 hover:bg-[#2B2C28] rounded transition"
+                    title="다음 년도"
+                  >
+                    <ChevronRight className="w-4 h-4 text-slate-400" />
+                  </button>
                 </div>
               </div>
-              <div className="overflow-x-auto pb-2">
-                <div className="inline-flex gap-[3px] min-w-max">
+              {/* 월 라벨 */}
+              <div className="flex mb-1" style={{ gap: "2px", width: "100%" }}>
+                {monthLabels.map((month, weekIndex) => (
+                  <div
+                    key={weekIndex}
+                    className="flex-1 text-center"
+                    style={{ minWidth: 0 }}
+                  >
+                    {month !== null && (
+                      <span className="text-base font-bold text-slate-400">
+                        {month}
+                      </span>
+                    )}
+                  </div>
+                ))}
+              </div>
+              <div className="w-full pb-2">
+                <div className="flex" style={{ gap: "2px", width: "100%" }}>
                   {grassGrid.map((week, weekIndex) => (
-                    <div key={weekIndex} className="flex flex-col gap-[3px]">
-                      {week.map((score, dayIndex) => (
-                        <div
-                          key={dayIndex}
-                          className="w-[11px] h-[11px] rounded-sm cursor-pointer hover:ring-2 hover:ring-[#7DE2D1] transition"
-                          style={{ backgroundColor: getGrassColor(score) }}
-                          title={`활동 점수: ${score}`}
-                        />
-                      ))}
+                    <div
+                      key={weekIndex}
+                      className="flex flex-col flex-1"
+                      style={{ gap: "2px" }}
+                    >
+                      {week.map((item, dayIndex) => {
+                        if (item === null) {
+                          return (
+                            <div
+                              key={dayIndex}
+                              className="w-full aspect-square rounded-[2px]"
+                              style={{ backgroundColor: "transparent" }}
+                            />
+                          );
+                        }
+                        const { score, month, dateString, grass } = item;
+                        const activityText = getActivityText(grass);
+                        return (
+                          <div
+                            key={dayIndex}
+                            className="w-full aspect-square rounded-[2px] cursor-pointer hover:ring-2 hover:ring-[#7DE2D1] transition"
+                            style={{
+                              backgroundColor: getGrassColor(score, month),
+                            }}
+                            title={`${dateString}\n${activityText}`}
+                          />
+                        );
+                      })}
                     </div>
                   ))}
                 </div>

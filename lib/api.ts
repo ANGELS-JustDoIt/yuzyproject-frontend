@@ -219,6 +219,20 @@ export const myApi = {
     });
   },
 
+  updateSchedule: async (
+    id: number,
+    data: {
+      title: string;
+      description?: string;
+      scheduleDate: string;
+    }
+  ) => {
+    return apiCall<{ message: string; schedule: any }>(`/my/schedule/${id}`, {
+      method: "PUT",
+      body: JSON.stringify(data),
+    });
+  },
+
   deleteSchedule: async (id: number) => {
     return apiCall<{ message: string }>(`/my/schedule/${id}`, {
       method: "DELETE",
