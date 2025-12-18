@@ -14,8 +14,16 @@ import {
   Plus,
   Edit,
   Trash2,
+  Heart,
+  MessageCircle,
+  Eye,
+  Loader2,
 } from "lucide-react";
 import Header from "@/components/Header";
+import { postApi, myApi } from "@/lib/api";
+import { Button } from "@/components/ui/button";
+
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080";
 
 // DB 스키마에 맞춘 타입 정의
 interface Member {
@@ -52,10 +60,24 @@ interface StudyArchive {
 // }
 
 interface Scrap {
+  scrapId?: number;
   scrab_id: number;
+  boardId?: number;
   board_id: number;
+  userId?: string;
   user_id: string;
+  createdAt?: string;
   created_at: string;
+  title?: string;
+  type?: string;
+  content?: string;
+  views?: number;
+  isSolved?: boolean;
+  likeCount?: number;
+  files?: any[];
+  postUserName?: string;
+  postUserId?: number;
+  userIdx?: number;
 }
 
 interface Noti {
@@ -195,14 +217,45 @@ export default function MyPage() {
   const [selectedDate, setSelectedDate] = useState<number | null>(null);
   const [showDateScheduleModal, setShowDateScheduleModal] = useState(false);
 
+  // 스크랩 게시글 상세보기 관련
+  const [selectedScrapPost, setSelectedScrapPost] = useState<Scrap | null>(
+    null
+  );
+  const [showScrapPostModal, setShowScrapPostModal] = useState(false);
+  const [editingScrapPost, setEditingScrapPost] = useState<Scrap | null>(null);
+  const [scrapPostComments, setScrapPostComments] = useState<any[]>([]);
+  const [scrapPostLiked, setScrapPostLiked] = useState(false);
+  const [scrapCommentText, setScrapCommentText] = useState("");
+  const [currentUserId, setCurrentUserId] = useState<number | null>(null);
+
   // 데이터 로드
   useEffect(() => {
     const loadData = async () => {
       try {
         const { myApi } = await import("@/lib/api");
 
-        // 프로필 및 통계 조회
-        const profileData = await myApi.getProfile();
+        // 일정 조회를 위한 날짜 계산
+        const year = currentMonth.getFullYear();
+        const month = currentMonth.getMonth() + 1;
+        const startDate = `${year}-${String(month).padStart(2, "0")}-01`;
+        const endDate = `${year}-${String(month).padStart(2, "0")}-31`;
+
+        // 모든 API를 병렬로 호출
+        const [
+          profileData,
+          grassData,
+          scrapsData,
+          notificationsData,
+          schedulesData,
+        ] = await Promise.all([
+          myApi.getProfile(),
+          myApi.getGrass(),
+          myApi.getScraps(),
+          myApi.getNotifications(),
+          myApi.getSchedules(startDate, endDate),
+        ]);
+
+        // 프로필 및 통계 처리
         if (profileData.profile) {
           setMember({
             user_id:
@@ -212,13 +265,13 @@ export default function MyPage() {
             hope_job: profileData.profile.hopeJob || "",
             created_at: profileData.profile.createdAt || "",
           });
+          setCurrentUserId(profileData.profile.userIdx || null);
         }
         if (profileData.stats) {
           setStats(profileData.stats);
         }
 
-        // 잔디 데이터 조회
-        const grassData = await myApi.getGrass();
+        // 잔디 데이터 처리
         console.log("잔디 데이터 응답:", grassData);
         if (grassData.grass && Array.isArray(grassData.grass)) {
           const processedGrass = grassData.grass.map(
@@ -258,23 +311,38 @@ export default function MyPage() {
           setGrassData([]);
         }
 
-        // 스크랩 조회
-        const scrapsData = await myApi.getScraps();
+        // 스크랩 처리
         if (scrapsData.scraps) {
           setScraps(
             scrapsData.scraps.map((s: Record<string, unknown>) => ({
+              scrapId: Number(s.scrapId || s.scrab_id || s.scrabId || 0),
               scrab_id: Number(s.scrapId || s.scrab_id || s.scrabId || 0),
+              boardId: Number(s.boardId || s.board_id || 0),
               board_id: Number(s.boardId || s.board_id || 0),
+              userId: String(
+                s.userId || s.user_id || s.userName || s.user_name || ""
+              ),
               user_id: String(
                 s.userId || s.user_id || s.userName || s.user_name || ""
               ),
+              createdAt: String(s.createdAt || s.created_at || ""),
               created_at: String(s.createdAt || s.created_at || ""),
+              title: s.title ? String(s.title) : undefined,
+              type: s.type ? String(s.type) : undefined,
+              content: s.content ? String(s.content) : undefined,
+              views: s.views ? Number(s.views) : undefined,
+              isSolved:
+                s.isSolved !== undefined ? Boolean(s.isSolved) : undefined,
+              likeCount: s.likeCount ? Number(s.likeCount) : undefined,
+              files: s.files ? (s.files as any[]) : undefined,
+              postUserName: s.postUserName ? String(s.postUserName) : undefined,
+              postUserId: s.postUserId ? Number(s.postUserId) : undefined,
+              userIdx: s.userIdx ? Number(s.userIdx) : undefined,
             }))
           );
         }
 
-        // 알림 조회
-        const notificationsData = await myApi.getNotifications();
+        // 알림 처리
         if (notificationsData.notifications) {
           setNotifications(
             notificationsData.notifications.map(
@@ -293,62 +361,51 @@ export default function MyPage() {
           );
         }
 
-        // 일정 조회 (현재 월 기준)
-        const loadSchedules = async () => {
-          const year = currentMonth.getFullYear();
-          const month = currentMonth.getMonth() + 1;
-          const startDate = `${year}-${String(month).padStart(2, "0")}-01`;
-          const endDate = `${year}-${String(month).padStart(2, "0")}-31`;
-          const schedulesData = await myApi.getSchedules(startDate, endDate);
-          if (schedulesData.schedules) {
-            setSchedules(
-              schedulesData.schedules.map((s: Record<string, unknown>) => {
-                // scheduleDate를 YYYY-MM-DD 형식으로 정규화
-                let scheduleDate: string | Date = (s.scheduleDate ||
-                  s.schedule_date ||
-                  "") as string | Date;
-                if (scheduleDate instanceof Date) {
-                  // Date 객체인 경우 로컬 날짜를 사용하여 타임존 문제 해결
-                  const year = scheduleDate.getFullYear();
-                  const month = String(scheduleDate.getMonth() + 1).padStart(
-                    2,
-                    "0"
-                  );
-                  const day = String(scheduleDate.getDate()).padStart(2, "0");
-                  scheduleDate = `${year}-${month}-${day}`;
-                } else if (typeof scheduleDate === "string") {
-                  // 문자열인 경우 ISO 형식이면 날짜 부분만 추출
-                  let dateStr = scheduleDate.split("T")[0];
-                  // 만약 문자열이 "2025-01-09" 형식이지만 실제로는 "2025-01-10"이어야 하는 경우
-                  // (타임존 변환으로 인해 하루 전으로 표시된 경우) 복구
-                  // 하지만 이는 정확하지 않으므로, Date 객체로 변환하여 로컬 날짜 사용
-                  if (dateStr.match(/^\d{4}-\d{2}-\d{2}$/)) {
-                    // 문자열을 Date 객체로 변환할 때 타임존 문제를 피하기 위해
-                    // 로컬 시간대 기준으로 파싱
-                    const [y, m, d] = dateStr.split("-").map(Number);
-                    const dateObj = new Date(y, m - 1, d);
-                    const year = dateObj.getFullYear();
-                    const month = String(dateObj.getMonth() + 1).padStart(
-                      2,
-                      "0"
-                    );
-                    const day = String(dateObj.getDate()).padStart(2, "0");
-                    dateStr = `${year}-${month}-${day}`;
-                  }
-                  scheduleDate = dateStr;
+        // 일정 처리
+        if (schedulesData.schedules) {
+          setSchedules(
+            schedulesData.schedules.map((s: Record<string, unknown>) => {
+              // scheduleDate를 YYYY-MM-DD 형식으로 정규화
+              let scheduleDate: string | Date = (s.scheduleDate ||
+                s.schedule_date ||
+                "") as string | Date;
+              if (scheduleDate instanceof Date) {
+                // Date 객체인 경우 로컬 날짜를 사용하여 타임존 문제 해결
+                const year = scheduleDate.getFullYear();
+                const month = String(scheduleDate.getMonth() + 1).padStart(
+                  2,
+                  "0"
+                );
+                const day = String(scheduleDate.getDate()).padStart(2, "0");
+                scheduleDate = `${year}-${month}-${day}`;
+              } else if (typeof scheduleDate === "string") {
+                // 문자열인 경우 ISO 형식이면 날짜 부분만 추출
+                let dateStr = scheduleDate.split("T")[0];
+                // 만약 문자열이 "2025-01-09" 형식이지만 실제로는 "2025-01-10"이어야 하는 경우
+                // (타임존 변환으로 인해 하루 전으로 표시된 경우) 복구
+                // 하지만 이는 정확하지 않으므로, Date 객체로 변환하여 로컬 날짜 사용
+                if (dateStr.match(/^\d{4}-\d{2}-\d{2}$/)) {
+                  // 문자열을 Date 객체로 변환할 때 타임존 문제를 피하기 위해
+                  // 로컬 시간대 기준으로 파싱
+                  const [y, m, d] = dateStr.split("-").map(Number);
+                  const dateObj = new Date(y, m - 1, d);
+                  const year = dateObj.getFullYear();
+                  const month = String(dateObj.getMonth() + 1).padStart(2, "0");
+                  const day = String(dateObj.getDate()).padStart(2, "0");
+                  dateStr = `${year}-${month}-${day}`;
                 }
-                return {
-                  scheduleId: Number(s.scheduleId || s.schedule_id || 0),
-                  scheduleDate: String(scheduleDate),
-                  title: String(s.title || ""),
-                  description: s.description ? String(s.description) : null,
-                  createdAt: s.createdAt ? String(s.createdAt) : undefined,
-                };
-              })
-            );
-          }
-        };
-        await loadSchedules();
+                scheduleDate = dateStr;
+              }
+              return {
+                scheduleId: Number(s.scheduleId || s.schedule_id || 0),
+                scheduleDate: String(scheduleDate),
+                title: String(s.title || ""),
+                description: s.description ? String(s.description) : null,
+                createdAt: s.createdAt ? String(s.createdAt) : undefined,
+              };
+            })
+          );
+        }
       } catch (error: unknown) {
         console.error("데이터 로드 실패:", error);
         const errorMessage =
@@ -801,6 +858,171 @@ export default function MyPage() {
 
   const unreadCount = notifications.filter((n) => !n.read_yn).length;
 
+  // 스크랩 목록 새로고침 헬퍼 함수
+  const refreshScraps = async () => {
+    try {
+      const scrapsData = await myApi.getScraps();
+      if (scrapsData.scraps) {
+        setScraps(
+          scrapsData.scraps.map((s: Record<string, unknown>) => ({
+            scrapId: Number(s.scrapId || s.scrab_id || s.scrabId || 0),
+            scrab_id: Number(s.scrapId || s.scrab_id || s.scrabId || 0),
+            boardId: Number(s.boardId || s.board_id || 0),
+            board_id: Number(s.boardId || s.board_id || 0),
+            userId: String(
+              s.userId || s.user_id || s.userName || s.user_name || ""
+            ),
+            user_id: String(
+              s.userId || s.user_id || s.userName || s.user_name || ""
+            ),
+            createdAt: String(s.createdAt || s.created_at || ""),
+            created_at: String(s.createdAt || s.created_at || ""),
+            title: s.title ? String(s.title) : undefined,
+            type: s.type ? String(s.type) : undefined,
+            content: s.content ? String(s.content) : undefined,
+            views: s.views ? Number(s.views) : undefined,
+            isSolved:
+              s.isSolved !== undefined ? Boolean(s.isSolved) : undefined,
+            likeCount: s.likeCount ? Number(s.likeCount) : undefined,
+            files: s.files ? (s.files as any[]) : undefined,
+            postUserName: s.postUserName ? String(s.postUserName) : undefined,
+            postUserId: s.postUserId ? Number(s.postUserId) : undefined,
+            userIdx: s.userIdx ? Number(s.userIdx) : undefined,
+          }))
+        );
+      }
+    } catch (err) {
+      console.error("스크랩 목록 새로고침 실패:", err);
+    }
+  };
+
+  // 스크랩 게시글 상세보기
+  const viewScrapPost = async (scrap: Scrap) => {
+    const boardId = scrap.boardId || scrap.board_id;
+    setSelectedScrapPost(scrap);
+    setShowScrapPostModal(true);
+
+    try {
+      // 댓글 목록 조회
+      const commentsResponse = await postApi.getComments(boardId);
+      setScrapPostComments(commentsResponse.comments || []);
+
+      // 좋아요 상태 조회
+      const likeResponse = await postApi.getLikeStatus(boardId);
+      setScrapPostLiked(likeResponse.isLiked);
+    } catch (err: any) {
+      console.error("게시글 상세 조회 에러:", err);
+    }
+  };
+
+  // 스크랩 게시글 수정
+  const editScrapPost = (scrap: Scrap) => {
+    setEditingScrapPost(scrap);
+    setShowScrapPostModal(false);
+  };
+
+  // 스크랩 게시글 삭제
+  const deleteScrapPost = async (boardId: number) => {
+    if (!confirm("정말 삭제하시겠습니까?")) return;
+
+    try {
+      await postApi.delete(boardId);
+      alert("게시글이 삭제되었습니다.");
+      setShowScrapPostModal(false);
+      setSelectedScrapPost(null);
+      // 스크랩 목록 새로고침
+      await refreshScraps();
+    } catch (err: any) {
+      alert(err.message || "게시글 삭제에 실패했습니다.");
+    }
+  };
+
+  // 스크랩 게시글 좋아요
+  const handleScrapPostLike = async (boardId: number) => {
+    try {
+      const response = await postApi.toggleLike(boardId);
+      setScrapPostLiked(response.isLiked);
+      if (selectedScrapPost) {
+        setSelectedScrapPost({
+          ...selectedScrapPost,
+          likeCount: response.likeCount,
+        });
+      }
+    } catch (err: any) {
+      alert(err.message || "좋아요 처리에 실패했습니다.");
+    }
+  };
+
+  // 스크랩 게시글 댓글 작성
+  const handleScrapCommentSubmit = async (boardId: number) => {
+    const text = scrapCommentText.trim();
+    if (!text) return;
+
+    try {
+      await postApi.createComment(boardId, text);
+      setScrapCommentText("");
+      // 댓글 목록 새로고침
+      const commentsResponse = await postApi.getComments(boardId);
+      setScrapPostComments(commentsResponse.comments || []);
+    } catch (err: any) {
+      alert(err.message || "댓글 작성에 실패했습니다.");
+    }
+  };
+
+  // 스크랩 취소
+  const handleUnscrap = async (boardId: number) => {
+    if (!confirm("스크랩을 취소하시겠습니까?")) return;
+
+    try {
+      await myApi.deleteScrap(boardId);
+      alert("스크랩이 취소되었습니다.");
+      // 스크랩 목록 새로고침
+      await refreshScraps();
+      // 상세보기 모달이 열려있으면 닫기
+      if (showScrapPostModal) {
+        setShowScrapPostModal(false);
+        setSelectedScrapPost(null);
+      }
+    } catch (err: any) {
+      alert(err.message || "스크랩 취소에 실패했습니다.");
+    }
+  };
+
+  // 스크랩 게시글 수정 저장
+  const saveScrapPost = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    if (!editingScrapPost) return;
+
+    const formData = new FormData(e.currentTarget);
+    const apiFormData = new FormData();
+    apiFormData.append("title", formData.get("title") as string);
+    apiFormData.append("content", formData.get("content") as string);
+    // type은 변경 불가하므로 기존 타입 유지 (백엔드에서 처리)
+
+    const mainImage = formData.get("mainImage") as File | null;
+    if (mainImage && mainImage.size > 0) {
+      apiFormData.append("mainImage", mainImage);
+    }
+
+    const files = formData.getAll("files") as File[];
+    files.forEach((file) => {
+      if (file.size > 0) {
+        apiFormData.append("files", file);
+      }
+    });
+
+    try {
+      const boardId = editingScrapPost.boardId || editingScrapPost.board_id;
+      await postApi.update(boardId, apiFormData);
+      alert("게시글이 성공적으로 수정되었습니다.");
+      setEditingScrapPost(null);
+      // 스크랩 목록 새로고침
+      await refreshScraps();
+    } catch (error: any) {
+      alert(error.message || "게시글 저장에 실패했습니다.");
+    }
+  };
+
   return (
     <div className="min-h-screen bg-[#131515]">
       <Header />
@@ -842,12 +1064,9 @@ export default function MyPage() {
                     <h1 className="text-2xl font-bold text-white">
                       {member?.user_id || "로딩 중..."}님
                     </h1>
-                    <span className="px-3 py-1 bg-[#339989]/20 text-[#7DE2D1] text-xs font-medium rounded-full">
-                      실력 78%
-                    </span>
                   </div>
                   <p className="text-slate-400 text-sm mb-4">
-                    1년차 · {member?.hope_job || ""}
+                    {member?.hope_job || ""}
                   </p>
                   <button
                     onClick={() => setActiveSection("profile")}
@@ -1242,26 +1461,90 @@ export default function MyPage() {
                   스크랩 모음
                 </h2>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {scraps.map((scrap) => (
-                    <div
-                      key={scrap.scrab_id}
-                      className="bg-[#131515] border border-[#2B2C28] rounded-lg p-4 hover:border-[#339989] transition cursor-pointer"
-                    >
-                      <div className="flex items-start gap-3">
-                        <Bookmark className="w-5 h-5 text-[#7DE2D1] flex-shrink-0 mt-0.5" />
-                        <div className="flex-1 min-w-0">
-                          <h3 className="text-white font-medium mb-1 hover:text-[#7DE2D1]">
-                            게시글 #{scrap.board_id}
-                          </h3>
-                          <p className="text-xs text-slate-500">
-                            {new Date(scrap.created_at).toLocaleDateString(
-                              "ko-KR"
+                  {scraps.map((scrap) => {
+                    const boardId = scrap.boardId || scrap.board_id;
+                    const isMyPost =
+                      currentUserId !== null &&
+                      (scrap.userIdx === currentUserId ||
+                        scrap.postUserId === currentUserId);
+
+                    return (
+                      <div
+                        key={scrap.scrab_id || scrap.scrapId}
+                        className="bg-[#131515] border border-[#2B2C28] rounded-lg p-4 hover:border-[#339989] transition"
+                      >
+                        <div className="flex items-start gap-3">
+                          <Bookmark className="w-5 h-5 text-[#7DE2D1] flex-shrink-0 mt-0.5" />
+                          <div className="flex-1 min-w-0">
+                            <h3
+                              className="text-white font-medium mb-1 hover:text-[#7DE2D1] cursor-pointer"
+                              onClick={() => viewScrapPost(scrap)}
+                            >
+                              {scrap.title || `게시글 #${boardId}`}
+                            </h3>
+                            <p className="text-xs text-slate-500 mb-2">
+                              {scrap.postUserName || scrap.userId || "작성자"} •{" "}
+                              {new Date(
+                                scrap.created_at || scrap.createdAt || ""
+                              ).toLocaleDateString("ko-KR")}
+                            </p>
+                            {scrap.content && (
+                              <p className="text-sm text-slate-400 mb-2 line-clamp-2">
+                                {scrap.content}
+                              </p>
                             )}
-                          </p>
+                            <div className="flex items-center gap-4 text-xs text-slate-500">
+                              {scrap.views !== undefined && (
+                                <div className="flex items-center gap-1">
+                                  <Eye className="w-3 h-3" />
+                                  <span>{scrap.views}</span>
+                                </div>
+                              )}
+                              {scrap.likeCount !== undefined && (
+                                <div className="flex items-center gap-1">
+                                  <Heart className="w-3 h-3" />
+                                  <span>{scrap.likeCount}</span>
+                                </div>
+                              )}
+                            </div>
+                            <div className="flex gap-2 mt-3">
+                              {isMyPost && (
+                                <>
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      editScrapPost(scrap);
+                                    }}
+                                    className="px-2 py-1 text-xs bg-[#339989] text-white rounded hover:bg-[#7DE2D1] transition"
+                                  >
+                                    수정
+                                  </button>
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      deleteScrapPost(boardId);
+                                    }}
+                                    className="px-2 py-1 text-xs bg-red-500/20 text-red-400 rounded hover:bg-red-500/30 transition"
+                                  >
+                                    삭제
+                                  </button>
+                                </>
+                              )}
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleUnscrap(boardId);
+                                }}
+                                className="px-2 py-1 text-xs bg-slate-700 text-slate-300 rounded hover:bg-slate-600 transition"
+                              >
+                                스크랩 취소
+                              </button>
+                            </div>
+                          </div>
                         </div>
                       </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               </div>
             )}
@@ -1397,6 +1680,327 @@ export default function MyPage() {
           </>
         )}
       </main>
+
+      {/* 스크랩 게시글 상세보기 모달 */}
+      {showScrapPostModal && selectedScrapPost && (
+        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
+          <div className="bg-[#1a1a18] border border-[#2B2C28] rounded-lg w-full max-w-4xl max-h-[90vh] overflow-y-auto">
+            <div className="p-6 border-b border-[#2B2C28] flex items-center justify-between sticky top-0 bg-[#1a1a18] z-10">
+              <h2 className="text-xl font-bold text-white">게시글 상세</h2>
+              <div className="flex items-center gap-2">
+                {currentUserId !== null &&
+                  (selectedScrapPost.userIdx === currentUserId ||
+                    selectedScrapPost.postUserId === currentUserId) && (
+                    <>
+                      <Button
+                        onClick={() => editScrapPost(selectedScrapPost)}
+                        className="px-3 py-1 text-sm bg-[#339989] text-white rounded hover:bg-[#7DE2D1] transition"
+                      >
+                        수정
+                      </Button>
+                      <Button
+                        onClick={() => {
+                          const boardId =
+                            selectedScrapPost.boardId ||
+                            selectedScrapPost.board_id;
+                          deleteScrapPost(boardId);
+                        }}
+                        className="px-3 py-1 text-sm bg-red-500/20 text-red-400 rounded hover:bg-red-500/30 transition"
+                      >
+                        삭제
+                      </Button>
+                    </>
+                  )}
+                <Button
+                  onClick={() => {
+                    const boardId =
+                      selectedScrapPost.boardId || selectedScrapPost.board_id;
+                    handleUnscrap(boardId);
+                  }}
+                  className="px-3 py-1 text-sm bg-slate-700 text-slate-300 rounded hover:bg-slate-600 transition"
+                >
+                  스크랩 취소
+                </Button>
+                <Button
+                  onClick={() => {
+                    setShowScrapPostModal(false);
+                    setSelectedScrapPost(null);
+                    setScrapPostComments([]);
+                    setScrapCommentText("");
+                  }}
+                  className="p-2 hover:bg-[#2B2C28] rounded transition"
+                >
+                  <X className="w-5 h-5 text-slate-400" />
+                </Button>
+              </div>
+            </div>
+
+            <div className="p-6">
+              <div className="space-y-6">
+                <div>
+                  <h1 className="text-2xl font-bold text-white mb-4">
+                    {selectedScrapPost.title ||
+                      `게시글 #${
+                        selectedScrapPost.boardId || selectedScrapPost.board_id
+                      }`}
+                  </h1>
+                  <div className="flex items-center gap-4 text-sm text-slate-400">
+                    <span className="font-medium text-white">
+                      {selectedScrapPost.postUserName ||
+                        selectedScrapPost.userId ||
+                        selectedScrapPost.user_id}
+                    </span>
+                    <span>•</span>
+                    <span>
+                      {new Date(
+                        selectedScrapPost.created_at ||
+                          selectedScrapPost.createdAt ||
+                          ""
+                      ).toLocaleString("ko-KR")}
+                    </span>
+                    <span>•</span>
+                    <div className="flex items-center gap-1">
+                      <Eye className="w-4 h-4" />
+                      <span>{selectedScrapPost.views || 0} 조회</span>
+                    </div>
+                    {selectedScrapPost.isSolved && (
+                      <>
+                        <span>•</span>
+                        <span className="px-2 py-1 bg-[#339989] text-white text-xs rounded">
+                          해결됨
+                        </span>
+                      </>
+                    )}
+                  </div>
+                </div>
+
+                {/* 파일 표시 */}
+                {selectedScrapPost.files &&
+                  selectedScrapPost.files.length > 0 && (
+                    <div className="space-y-2">
+                      {selectedScrapPost.files
+                        .filter((f: any) => f.isMainImage)
+                        .map((file: any) => (
+                          <img
+                            key={file.fileKey}
+                            src={`${API_BASE_URL}${file.filePath}`}
+                            alt={file.fileName}
+                            className="w-full rounded-lg"
+                          />
+                        ))}
+                    </div>
+                  )}
+
+                <div className="prose prose-invert max-w-none">
+                  <p className="text-slate-300 leading-relaxed whitespace-pre-wrap">
+                    {selectedScrapPost.content || "내용이 없습니다."}
+                  </p>
+                </div>
+
+                {/* 첨부 파일 목록 */}
+                {selectedScrapPost.files &&
+                  selectedScrapPost.files.length > 0 && (
+                    <div className="border-t border-[#2B2C28] pt-4">
+                      <h3 className="text-white font-medium mb-2">첨부 파일</h3>
+                      <div className="space-y-2">
+                        {selectedScrapPost.files.map((file: any) => (
+                          <a
+                            key={file.fileKey}
+                            href={`${API_BASE_URL}${file.filePath}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="block text-[#7DE2D1] hover:underline text-sm"
+                          >
+                            {file.fileName}
+                          </a>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                <div className="flex items-center gap-6 pt-4 border-t border-[#2B2C28]">
+                  <Button
+                    onClick={() => {
+                      const boardId =
+                        selectedScrapPost.boardId || selectedScrapPost.board_id;
+                      handleScrapPostLike(boardId);
+                    }}
+                    className={`flex items-center gap-2 transition ${
+                      scrapPostLiked
+                        ? "text-[#7DE2D1]"
+                        : "text-slate-400 hover:text-[#7DE2D1]"
+                    }`}
+                  >
+                    <Heart
+                      className={`w-5 h-5 ${
+                        scrapPostLiked ? "fill-current" : ""
+                      }`}
+                    />
+                    <span className="text-sm">
+                      좋아요 {selectedScrapPost.likeCount || 0}
+                    </span>
+                  </Button>
+                </div>
+
+                <div className="border-t border-[#2B2C28] pt-6">
+                  <h3 className="text-white font-medium mb-4">
+                    {selectedScrapPost.type === "question" ? "답변" : "댓글"}{" "}
+                    {scrapPostComments.length}개
+                  </h3>
+
+                  {/* 댓글 작성 폼 */}
+                  <div className="mb-6">
+                    <textarea
+                      value={scrapCommentText}
+                      onChange={(e) => setScrapCommentText(e.target.value)}
+                      placeholder="댓글을 입력하세요..."
+                      rows={3}
+                      className="w-full bg-[#131515] border border-[#2B2C28] rounded-lg px-4 py-2 text-white resize-none focus:outline-none focus:border-[#339989] transition mb-2"
+                    />
+                    <Button
+                      onClick={() => {
+                        const boardId =
+                          selectedScrapPost.boardId ||
+                          selectedScrapPost.board_id;
+                        handleScrapCommentSubmit(boardId);
+                      }}
+                      disabled={!scrapCommentText.trim()}
+                      className="px-4 py-2 bg-[#339989] text-white rounded-lg hover:bg-[#7DE2D1] transition disabled:opacity-50"
+                    >
+                      댓글 작성
+                    </Button>
+                  </div>
+
+                  <div className="space-y-4">
+                    {scrapPostComments.map((comment: any) => (
+                      <div key={comment.replyId} className="flex gap-3">
+                        <div className="w-8 h-8 rounded-full bg-[#2B2C28]" />
+                        <div className="flex-1">
+                          <div className="flex items-center gap-2 text-sm text-slate-400 mb-1">
+                            <span className="text-white font-medium">
+                              {typeof comment.userId === "number"
+                                ? `User ${comment.userId}`
+                                : comment.userId}
+                            </span>
+                            <span>•</span>
+                            <span>
+                              {new Date(comment.createdAt).toLocaleString(
+                                "ko-KR"
+                              )}
+                            </span>
+                            {comment.isSelected && (
+                              <span className="px-2 py-0.5 bg-[#339989] text-white text-xs rounded">
+                                채택됨
+                              </span>
+                            )}
+                          </div>
+                          <p className="text-sm text-slate-300">
+                            {comment.reply || comment.content}
+                          </p>
+                        </div>
+                      </div>
+                    ))}
+                    {scrapPostComments.length === 0 && (
+                      <p className="text-slate-400 text-sm text-center py-4">
+                        댓글이 없습니다.
+                      </p>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 스크랩 게시글 수정 모달 */}
+      {editingScrapPost && (
+        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
+          <div className="bg-[#1a1a18] border border-[#2B2C28] rounded-lg w-full max-w-2xl">
+            <div className="p-6 border-b border-[#2B2C28] flex items-center justify-between">
+              <h2 className="text-xl font-bold text-white">게시글 수정</h2>
+              <Button
+                onClick={() => {
+                  setEditingScrapPost(null);
+                }}
+                className="p-2 hover:bg-[#2B2C28] rounded transition"
+              >
+                <X className="w-5 h-5 text-slate-400" />
+              </Button>
+            </div>
+
+            <form onSubmit={saveScrapPost} className="p-6 space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-slate-400 mb-2">
+                  제목
+                </label>
+                <input
+                  type="text"
+                  name="title"
+                  defaultValue={editingScrapPost.title || ""}
+                  required
+                  className="w-full bg-[#131515] border border-[#2B2C28] rounded-lg px-4 py-2 text-white focus:outline-none focus:border-[#339989] transition"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-slate-400 mb-2">
+                  내용
+                </label>
+                <textarea
+                  name="content"
+                  defaultValue={editingScrapPost.content || ""}
+                  required
+                  rows={6}
+                  className="w-full bg-[#131515] border border-[#2B2C28] rounded-lg px-4 py-2 text-white resize-none focus:outline-none focus:border-[#339989] transition"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-slate-400 mb-2">
+                  메인 이미지 (선택)
+                </label>
+                <input
+                  type="file"
+                  name="mainImage"
+                  accept="image/*"
+                  className="w-full bg-[#131515] border border-[#2B2C28] rounded-lg px-4 py-2 text-white focus:outline-none focus:border-[#339989] transition"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-slate-400 mb-2">
+                  첨부 파일 (선택, 여러 개 가능)
+                </label>
+                <input
+                  type="file"
+                  name="files"
+                  multiple
+                  className="w-full bg-[#131515] border border-[#2B2C28] rounded-lg px-4 py-2 text-white focus:outline-none focus:border-[#339989] transition"
+                />
+              </div>
+
+              <div className="flex justify-end gap-3 pt-4">
+                <Button
+                  type="button"
+                  onClick={() => {
+                    setEditingScrapPost(null);
+                  }}
+                  className="px-4 py-2 text-slate-400 hover:text-white transition"
+                >
+                  취소
+                </Button>
+                <Button
+                  type="submit"
+                  className="px-6 py-2 bg-[#339989] text-white rounded-lg hover:bg-[#7DE2D1] transition font-medium"
+                >
+                  수정하기
+                </Button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
 
       {/* 날짜별 일정 목록 모달 */}
       {showDateScheduleModal && selectedDate !== null && (

@@ -20,7 +20,7 @@ export default function LoginPage() {
     try {
       const { authApi } = await import("@/lib/api");
       await authApi.login(email, password);
-      router.push("/"); // 로그인 성공 후 메인 페이지로 이동
+      router.push("/code"); // 로그인 성공 후 코드 분석 페이지로 이동
       router.refresh(); // 페이지 새로고침하여 로그인 상태 반영
     } catch (error: any) {
       console.error("로그인 에러:", error);
@@ -132,7 +132,7 @@ export default function LoginPage() {
           <div className="flex items-center justify-center gap-2 text-slate-400 text-sm">
             <span>계정이 없으신가요?</span>
             <a
-              href="#"
+              href="/signup"
               className="text-[#7DE2D1] hover:underline font-semibold"
             >
               회원가입

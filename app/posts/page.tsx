@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import type React from "react";
 import {
   Code2,
@@ -14,114 +14,58 @@ import {
   User,
   ChevronLeft,
   ChevronRight,
+  Loader2,
 } from "lucide-react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import Header from "@/components/Header";
+import { postApi, myApi } from "@/lib/api";
+
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080";
 
 interface Post {
-  board_id: number;
+  boardId: number;
   title: string;
   type: "community" | "question";
   content: string;
-  user_id: string;
-  created_at: string;
-  updated_at: string;
-  main_image_id?: number;
+  userId: string | number; // user_idx일 수도 있음
+  userIdx?: number; // 실제 user_idx
+  userName?: string; // 사용자 이름
+  name?: string; // 사용자 이름 (DB 필드명)
+  createdAt: string;
+  updatedAt: string;
+  mainImageId?: number;
   views: number;
-  is_solved: boolean;
+  isSolved: boolean;
+  likeCount: number;
 }
 
 interface Comment {
-  reply_id: number;
-  board_id: number;
+  replyId: number;
+  boardId: number;
   seq: number;
-  content: string;
-  user_id: string;
-  created_at: string;
-  updated_at: string;
-  is_selected: boolean;
-}
-
-interface Keyword {
-  board_id: number;
-  keyword: string;
-  keyword_id: number;
+  reply: string; // 백엔드에서 reply 필드로 반환
+  content?: string; // 호환성을 위해 유지
+  userId: string | number;
+  userIdx?: number; // 실제 user_idx
+  userName?: string; // 사용자 이름
+  name?: string; // 사용자 이름 (DB 필드명)
+  createdAt: string;
+  updatedAt: string;
+  isSelected: boolean;
 }
 
 interface FileAttachment {
-  board_type: string;
-  board_id: number;
-  file_path: string;
-  file_name: string;
+  boardType: string;
+  boardId: number;
+  filePath: string;
+  fileName: string;
   seq: number;
-  user_id: string;
-  file_key: string;
-  created_at: string;
+  userId: string;
+  fileKey: number;
+  createdAt: string;
+  isMainImage?: boolean;
 }
-
-// 목 데이터
-const mockPosts: Post[] = [
-  // 커뮤니티 게시글 30개
-  ...Array.from({ length: 30 }, (_, i) => ({
-    board_id: i + 1,
-    title: `커뮤니티 게시글 ${i + 1}`,
-    type: "community" as const,
-    content: `이것은 커뮤니티 게시글 ${
-      i + 1
-    }의 내용입니다. 오늘 배운 내용을 공유합니다!`,
-    user_id: `user_${String(i + 1).padStart(3, "0")}`,
-    created_at: new Date(Date.now() - i * 3600000).toISOString(),
-    updated_at: new Date(Date.now() - i * 3600000).toISOString(),
-    main_image_id: (i % 3) + 1,
-    views: Math.floor(Math.random() * 500) + 10,
-    is_solved: false,
-  })),
-  // 질문 게시글 30개
-  ...Array.from({ length: 30 }, (_, i) => ({
-    board_id: i + 31,
-    title: `질문 게시글 ${i + 1}: ${
-      ["React", "JavaScript", "Python", "Java", "TypeScript"][i % 5]
-    } 관련 질문`,
-    type: "question" as const,
-    content: `${
-      ["React", "JavaScript", "Python", "Java", "TypeScript"][i % 5]
-    }에 대한 질문입니다. ${i + 1}번째 질문이에요.`,
-    user_id: `user_${String(i + 31).padStart(3, "0")}`,
-    created_at: new Date(Date.now() - i * 7200000).toISOString(),
-    updated_at: new Date(Date.now() - i * 7200000).toISOString(),
-    views: Math.floor(Math.random() * 1000) + 50,
-    is_solved: i % 3 === 0,
-  })),
-];
-
-const mockKeywords: Keyword[] = mockPosts
-  .filter((p) => p.type === "question")
-  .flatMap((p, idx) => [
-    {
-      board_id: p.board_id,
-      keyword: ["React", "JavaScript", "Python", "Java", "TypeScript"][idx % 5],
-      keyword_id: idx * 3 + 1,
-    },
-    {
-      board_id: p.board_id,
-      keyword: ["hooks", "async", "OOP", "Spring", "types"][idx % 5],
-      keyword_id: idx * 3 + 2,
-    },
-  ]);
-
-const mockComments: Comment[] = mockPosts.flatMap((p, idx) =>
-  Array.from({ length: Math.floor(Math.random() * 5) + 1 }, (_, i) => ({
-    reply_id: idx * 10 + i + 1,
-    board_id: p.board_id,
-    seq: i + 1,
-    content: `댓글 ${i + 1}번: 좋은 내용이네요!`,
-    user_id: `user_${String(idx + i).padStart(3, "0")}`,
-    created_at: new Date(Date.now() - (idx + i) * 3600000).toISOString(),
-    updated_at: new Date(Date.now() - (idx + i) * 3600000).toISOString(),
-    is_selected: p.type === "question" && i === 0,
-  }))
-);
 
 export default function PostsPage() {
   const [activeTab, setActiveTab] = useState<"community" | "question">(
@@ -130,52 +74,215 @@ export default function PostsPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [likedPosts, setLikedPosts] = useState<Set<number>>(new Set());
   const [savedPosts, setSavedPosts] = useState<Set<number>>(new Set());
+  const [postImages, setPostImages] = useState<Map<number, string>>(new Map()); // 게시글 ID -> 메인 이미지 URL
   const [showWriteModal, setShowWriteModal] = useState(false);
   const [showDetailModal, setShowDetailModal] = useState(false);
   const [selectedPost, setSelectedPost] = useState<Post | null>(null);
+  const [selectedPostFiles, setSelectedPostFiles] = useState<FileAttachment[]>(
+    []
+  );
+  const [selectedPostComments, setSelectedPostComments] = useState<Comment[]>(
+    []
+  );
   const [editingPost, setEditingPost] = useState<Post | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
+  const [posts, setPosts] = useState<Post[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [pagination, setPagination] = useState({
+    page: 1,
+    limit: 10,
+    total: 0,
+    totalPages: 1,
+  });
+  const [commentText, setCommentText] = useState<{ [key: number]: string }>({});
+  const [editingCommentId, setEditingCommentId] = useState<number | null>(null);
+  const [editCommentText, setEditCommentText] = useState<{
+    [key: number]: string;
+  }>({});
+  const [submitting, setSubmitting] = useState(false);
+  const [currentUserId, setCurrentUserId] = useState<number | null>(null);
+
   const postsPerPage = activeTab === "community" ? 9 : 15;
 
-  const filteredPosts = mockPosts.filter(
-    (post) =>
-      post.type === activeTab &&
-      (post.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        post.user_id.toLowerCase().includes(searchQuery.toLowerCase()))
-  );
+  // 현재 사용자 정보 및 스크랩 목록 조회
+  useEffect(() => {
+    const fetchCurrentUserAndScraps = async () => {
+      try {
+        const [profileResponse, scrapsResponse] = await Promise.all([
+          myApi.getProfile(),
+          myApi.getScraps(),
+        ]);
+        setCurrentUserId(profileResponse.profile.userIdx || null);
 
-  const totalPages = Math.ceil(filteredPosts.length / postsPerPage);
-  const startIndex = (currentPage - 1) * postsPerPage;
-  const endIndex = startIndex + postsPerPage;
-  const currentPosts = filteredPosts.slice(startIndex, endIndex);
+        // 스크랩된 게시글 ID 목록 설정
+        if (scrapsResponse.scraps && Array.isArray(scrapsResponse.scraps)) {
+          const scrapedBoardIds = new Set(
+            scrapsResponse.scraps.map(
+              (scrap: any) => scrap.boardId || scrap.board_id
+            )
+          );
+          setSavedPosts(scrapedBoardIds);
+        }
+      } catch (err) {
+        console.error("사용자 정보 및 스크랩 조회 실패:", err);
+      }
+    };
+    fetchCurrentUserAndScraps();
+  }, []);
+
+  // 게시글 목록 조회
+  const fetchPosts = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      const limit = postsPerPage;
+      const response = await postApi.getPosts({
+        page: currentPage,
+        limit,
+        type: activeTab,
+        keyword: searchQuery || undefined,
+      });
+      setPosts(response.posts);
+      setPagination(response.pagination);
+
+      // 각 게시글의 메인 이미지 파일 정보 조회
+      const postsWithMainImages = response.posts.filter(
+        (post: Post) => post.mainImageId
+      );
+      if (postsWithMainImages.length > 0) {
+        const imagePromises = postsWithMainImages.map(async (post: Post) => {
+          try {
+            const postDetail = await postApi.getPost(post.boardId);
+            const mainFile = postDetail.files?.find(
+              (f: FileAttachment) =>
+                f.fileKey === post.mainImageId && f.isMainImage
+            );
+            if (mainFile) {
+              return {
+                postId: post.boardId,
+                imageUrl: `${API_BASE_URL}${mainFile.filePath}`,
+              };
+            }
+          } catch (err) {
+            console.error(`게시글 ${post.boardId} 이미지 조회 실패:`, err);
+          }
+          return null;
+        });
+
+        const imageResults = await Promise.all(imagePromises);
+        const newImageMap = new Map<number, string>();
+        imageResults.forEach((result) => {
+          if (result) {
+            newImageMap.set(result.postId, result.imageUrl);
+          }
+        });
+        setPostImages(newImageMap);
+      }
+    } catch (err: any) {
+      setError(err.message || "게시글을 불러오는데 실패했습니다.");
+      console.error("게시글 조회 에러:", err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // 게시글 상세 조회 (백그라운드에서 실행)
+  const fetchPostDetail = async (postId: number) => {
+    try {
+      // 병렬로 게시글 상세와 좋아요 상태만 조회 (댓글은 이미 로드됨)
+      const [postResponse, likeResponse] = await Promise.all([
+        postApi.getPost(postId),
+        postApi.getLikeStatus(postId),
+      ]);
+
+      setSelectedPost(postResponse.post);
+      setSelectedPostFiles(postResponse.files || []);
+
+      setLikedPosts((prev) => {
+        const newSet = new Set(prev);
+        if (likeResponse.isLiked) {
+          newSet.add(postId);
+        } else {
+          newSet.delete(postId);
+        }
+        return newSet;
+      });
+    } catch (err: any) {
+      console.error("게시글 상세 조회 에러:", err);
+      // 에러가 발생해도 사용자에게 알리지 않음 (댓글은 이미 표시됨)
+    }
+  };
+
+  useEffect(() => {
+    fetchPosts();
+  }, [activeTab, currentPage, searchQuery]);
 
   const handleTabChange = (tab: "community" | "question") => {
     setActiveTab(tab);
     setCurrentPage(1);
   };
 
-  const handleLike = (postId: number) => {
-    setLikedPosts((prev) => {
-      const newSet = new Set(prev);
-      if (newSet.has(postId)) {
-        newSet.delete(postId);
-      } else {
-        newSet.add(postId);
+  const handleLike = async (postId: number) => {
+    try {
+      const response = await postApi.toggleLike(postId);
+      setLikedPosts((prev) => {
+        const newSet = new Set(prev);
+        if (response.isLiked) {
+          newSet.add(postId);
+        } else {
+          newSet.delete(postId);
+        }
+        return newSet;
+      });
+      // 목록의 좋아요 개수 업데이트
+      setPosts((prev) =>
+        prev.map((post) =>
+          post.boardId === postId
+            ? { ...post, likeCount: response.likeCount }
+            : post
+        )
+      );
+      // 상세보기 모달이 열려있으면 업데이트
+      if (selectedPost && selectedPost.boardId === postId) {
+        setSelectedPost({ ...selectedPost, likeCount: response.likeCount });
       }
-      return newSet;
-    });
+    } catch (err: any) {
+      alert(err.message || "좋아요 처리에 실패했습니다.");
+    }
   };
 
-  const handleSave = (postId: number) => {
-    setSavedPosts((prev) => {
-      const newSet = new Set(prev);
-      if (newSet.has(postId)) {
-        newSet.delete(postId);
+  const handleSave = async (postId: number) => {
+    try {
+      // 이미 스크랩되어 있는지 확인
+      if (savedPosts.has(postId)) {
+        // 스크랩 삭제
+        await myApi.deleteScrap(postId);
+        setSavedPosts((prev) => {
+          const newSet = new Set(prev);
+          newSet.delete(postId);
+          return newSet;
+        });
+        // 상세보기 모달이 열려있으면 업데이트
+        if (selectedPost && selectedPost.boardId === postId) {
+          // 상태는 이미 업데이트됨
+        }
       } else {
-        newSet.add(postId);
+        // 스크랩 추가
+        await myApi.createScrap(postId);
+        setSavedPosts((prev) => {
+          const newSet = new Set(prev);
+          newSet.add(postId);
+          return newSet;
+        });
       }
-      return newSet;
-    });
+    } catch (err: any) {
+      if (err.message && err.message.includes("이미 스크랩한")) {
+        alert("이미 스크랩한 게시글입니다.");
+      } else {
+        alert(err.message || "스크랩 처리에 실패했습니다.");
+      }
+    }
   };
 
   const createPost = (type: "community" | "question") => {
@@ -186,67 +293,191 @@ export default function PostsPage() {
 
   const editPost = (post: Post) => {
     setEditingPost(post);
-    setShowWriteModal(true);
+    setShowDetailModal(false); // 상세보기 모달 닫기
+    setSelectedPost(null);
+    setSelectedPostFiles([]);
+    setSelectedPostComments([]);
+    setShowWriteModal(true); // 수정 모달 열기
   };
 
-  const viewPost = (post: Post) => {
+  const viewPost = async (post: Post) => {
     setSelectedPost(post);
     setShowDetailModal(true);
+    // 댓글만 먼저 빠르게 로드
+    try {
+      const commentsResponse = await postApi.getComments(post.boardId);
+      setSelectedPostComments(commentsResponse.comments || []);
+    } catch (err) {
+      console.error("댓글 조회 에러:", err);
+    }
+    // 나머지는 백그라운드에서 로드
+    fetchPostDetail(post.boardId);
   };
 
-  const deletePost = (id: number) => {
-    if (confirm("정말 삭제하시겠습니까?")) {
-      setLikedPosts((prev) => {
-        const newSet = new Set(prev);
-        newSet.delete(id);
-        return newSet;
-      });
+  const deletePost = async (id: number) => {
+    if (!confirm("정말 삭제하시겠습니까?")) return;
+
+    try {
+      await postApi.delete(id);
+      alert("게시글이 삭제되었습니다.");
+      setShowDetailModal(false);
+      setSelectedPost(null);
+      fetchPosts(); // 목록 새로고침
+    } catch (err: any) {
+      alert(err.message || "게시글 삭제에 실패했습니다.");
     }
   };
 
   const savePost = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    const formData = new FormData(e.currentTarget);
-
-    // 백엔드 API 형식에 맞게 FormData 구성
-    const apiFormData = new FormData();
-    apiFormData.append("title", formData.get("title") as string);
-    apiFormData.append("type", activeTab);
-    apiFormData.append("content", formData.get("content") as string);
-
-    // 메인 이미지가 있으면 추가
-    const mainImage = formData.get("mainImage") as File | null;
-    if (mainImage && mainImage.size > 0) {
-      apiFormData.append("mainImage", mainImage);
-    }
-
-    // 첨부 파일들이 있으면 추가
-    const files = formData.getAll("files") as File[];
-    files.forEach((file) => {
-      if (file.size > 0) {
-        apiFormData.append("files", file);
-      }
-    });
+    setSubmitting(true);
 
     try {
-      const { postApi } = await import("@/lib/api");
-      await postApi.create(apiFormData);
-      alert("게시글이 성공적으로 작성되었습니다.");
+      const formData = new FormData(e.currentTarget);
+      const apiFormData = new FormData();
+      apiFormData.append("title", formData.get("title") as string);
+      apiFormData.append("type", activeTab);
+      apiFormData.append("content", formData.get("content") as string);
+
+      // 메인 이미지가 있으면 추가
+      const mainImage = formData.get("mainImage") as File | null;
+      if (mainImage && mainImage.size > 0) {
+        apiFormData.append("mainImage", mainImage);
+      }
+
+      // 첨부 파일들이 있으면 추가
+      const files = formData.getAll("files") as File[];
+      files.forEach((file) => {
+        if (file.size > 0) {
+          apiFormData.append("files", file);
+        }
+      });
+
+      if (editingPost) {
+        // 수정 모드
+        // 삭제할 파일 ID 목록 (현재는 구현하지 않음, 필요시 추가)
+        // apiFormData.append("deleteFileIds", JSON.stringify([]));
+        await postApi.update(editingPost.boardId, apiFormData);
+        alert("게시글이 성공적으로 수정되었습니다.");
+      } else {
+        // 작성 모드
+        await postApi.create(apiFormData);
+        alert("게시글이 성공적으로 작성되었습니다.");
+      }
+
       setShowWriteModal(false);
       setEditingPost(null);
-      // 페이지 새로고침 또는 게시글 목록 다시 불러오기
-      window.location.reload();
+      fetchPosts(); // 목록 새로고침
     } catch (error: any) {
-      alert(error.message || "게시글 작성에 실패했습니다.");
+      alert(error.message || "게시글 저장에 실패했습니다.");
+    } finally {
+      setSubmitting(false);
     }
   };
 
-  const getPostKeywords = (board_id: number) => {
-    return mockKeywords.filter((k) => k.board_id === board_id);
+  const handleCommentSubmit = async (postId: number) => {
+    const text = commentText[postId]?.trim();
+    if (!text) return;
+
+    try {
+      setSubmitting(true);
+      await postApi.createComment(postId, text);
+      setCommentText({ ...commentText, [postId]: "" });
+      // 댓글 목록 새로고침
+      const commentsResponse = await postApi.getComments(postId);
+      setSelectedPostComments(commentsResponse.comments || []);
+    } catch (err: any) {
+      alert(err.message || "댓글 작성에 실패했습니다.");
+    } finally {
+      setSubmitting(false);
+    }
   };
 
-  const getPostComments = (board_id: number) => {
-    return mockComments.filter((c) => c.board_id === board_id);
+  const handleSelectComment = async (postId: number, replyId: number) => {
+    try {
+      await postApi.selectComment(postId, replyId);
+      alert("답변이 채택되었습니다.");
+      // 댓글 목록 새로고침
+      const commentsResponse = await postApi.getComments(postId);
+      setSelectedPostComments(commentsResponse.comments || []);
+      // 게시글 상세 정보 새로고침
+      await fetchPostDetail(postId);
+    } catch (err: any) {
+      alert(err.message || "답변 채택에 실패했습니다.");
+    }
+  };
+
+  const handleEditComment = (comment: Comment) => {
+    setEditingCommentId(comment.replyId);
+    setEditCommentText({
+      ...editCommentText,
+      [comment.replyId]: comment.reply || comment.content || "",
+    });
+  };
+
+  const handleCancelEdit = () => {
+    setEditingCommentId(null);
+    setEditCommentText({});
+  };
+
+  const handleUpdateComment = async (postId: number, replyId: number) => {
+    const text = editCommentText[replyId]?.trim();
+    if (!text) return;
+
+    try {
+      setSubmitting(true);
+      await postApi.updateComment(postId, replyId, text);
+      setEditingCommentId(null);
+      setEditCommentText({});
+      // 댓글 목록 새로고침
+      const commentsResponse = await postApi.getComments(postId);
+      setSelectedPostComments(commentsResponse.comments || []);
+    } catch (err: any) {
+      alert(err.message || "댓글 수정에 실패했습니다.");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleDeleteComment = async (postId: number, replyId: number) => {
+    if (!confirm("정말 삭제하시겠습니까?")) return;
+
+    try {
+      setSubmitting(true);
+      await postApi.deleteComment(postId, replyId);
+      // 댓글 목록 새로고침
+      const commentsResponse = await postApi.getComments(postId);
+      setSelectedPostComments(commentsResponse.comments || []);
+    } catch (err: any) {
+      alert(err.message || "댓글 삭제에 실패했습니다.");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const isMyComment = (comment: Comment) => {
+    return (
+      currentUserId !== null &&
+      (comment.userIdx === currentUserId ||
+        (typeof comment.userId === "number" &&
+          comment.userId === currentUserId))
+    );
+  };
+
+  const getMainImageUrl = (post: Post) => {
+    // 먼저 postImages Map에서 확인 (게시글 목록용)
+    if (postImages.has(post.boardId)) {
+      return postImages.get(post.boardId) || null;
+    }
+    // 상세보기 모달에서 사용하는 경우
+    if (!post.mainImageId) return null;
+    const mainFile = selectedPostFiles.find(
+      (f) => f.fileKey === post.mainImageId && f.isMainImage
+    );
+    if (mainFile) {
+      return `${API_BASE_URL}${mainFile.filePath}`;
+    }
+    return null;
   };
 
   return (
@@ -295,7 +526,10 @@ export default function PostsPage() {
               type="text"
               placeholder="검색..."
               value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
+              onChange={(e) => {
+                setSearchQuery(e.target.value);
+                setCurrentPage(1);
+              }}
               className="w-64 h-9 pl-10 pr-4 bg-[#2B2C28] border border-[#2B2C28] rounded-lg text-sm text-white placeholder-slate-500 focus:outline-none focus:border-[#339989] transition"
             />
           </div>
@@ -304,17 +538,36 @@ export default function PostsPage() {
 
       {/* Main Content */}
       <main className="max-w-7xl mx-auto px-6 py-8">
-        {activeTab === "community" && (
+        {loading && (
+          <div className="flex items-center justify-center py-20">
+            <Loader2 className="w-8 h-8 text-[#7DE2D1] animate-spin" />
+          </div>
+        )}
+
+        {error && (
+          <div className="bg-red-500/10 border border-red-500/50 rounded-lg p-4 mb-4">
+            <p className="text-red-400 text-sm">{error}</p>
+          </div>
+        )}
+
+        {!loading && !error && posts.length === 0 && (
+          <div className="text-center py-20">
+            <p className="text-slate-400">게시글이 없습니다.</p>
+          </div>
+        )}
+
+        {!loading && !error && activeTab === "community" && (
           <div className="max-w-2xl mx-auto space-y-6">
-            {currentPosts.map((post) => {
-              const postComments = getPostComments(post.board_id);
-              const isLiked = likedPosts.has(post.board_id);
-              const isSaved = savedPosts.has(post.board_id);
+            {posts.map((post) => {
+              const isLiked = likedPosts.has(post.boardId);
+              const isSaved = savedPosts.has(post.boardId);
+              const mainImageUrl = getMainImageUrl(post);
 
               return (
                 <div
-                  key={post.board_id}
-                  className="bg-[#2B2C28] rounded-lg overflow-hidden border border-[#2B2C28]/50 hover:border-[#339989]/30 transition"
+                  key={post.boardId}
+                  className="bg-[#2B2C28] rounded-lg overflow-hidden border border-[#2B2C28]/50 hover:border-[#339989]/30 transition cursor-pointer"
+                  onClick={() => viewPost(post)}
                 >
                   {/* Post Header */}
                   <div className="flex items-center justify-between p-4">
@@ -324,62 +577,91 @@ export default function PostsPage() {
                       </div>
                       <div>
                         <p className="text-sm font-medium text-white">
-                          {post.user_id}
+                          {post.name ||
+                            post.userName ||
+                            (typeof post.userId === "number"
+                              ? `User ${post.userId}`
+                              : post.userId)}
                         </p>
                         <p className="text-xs text-slate-400">
-                          {new Date(post.created_at).toLocaleDateString()}
+                          {new Date(post.createdAt).toLocaleDateString()}
                         </p>
                       </div>
                     </div>
-                    <button className="text-slate-400 hover:text-white">
+                    <button
+                      className="text-slate-400 hover:text-white"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                      }}
+                    >
                       <MoreHorizontal className="w-5 h-5" />
                     </button>
                   </div>
 
                   {/* Post Image */}
-                  <div
-                    className="aspect-square bg-[#131515] relative cursor-pointer"
-                    onClick={() => viewPost(post)}
-                  >
-                    <img
-                      src={`/ceholder-svg-key-uvxel-height-600-width-600-text-p.jpg?key=uvxel&height=600&width=600&text=Post+${post.board_id}`}
-                      alt={post.title}
-                      className="w-full h-full object-cover"
-                    />
-                  </div>
+                  {mainImageUrl && (
+                    <div className="aspect-square bg-[#131515] relative">
+                      <img
+                        src={mainImageUrl}
+                        alt={post.title}
+                        className="w-full h-full object-cover"
+                      />
+                    </div>
+                  )}
 
-                  {/* Post Actions */}
+                  {/* Post Content */}
                   <div className="p-4 space-y-3">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-4">
-                        <button
-                          onClick={() => handleLike(post.board_id)}
-                          className="transition"
-                        >
-                          <Heart
-                            className={`w-6 h-6 ${
-                              isLiked
-                                ? "fill-red-500 text-red-500"
-                                : "text-white"
-                            }`}
-                          />
-                        </button>
-                        <button
-                          onClick={() => viewPost(post)}
-                          className="text-white transition"
-                        >
-                          <MessageCircle className="w-6 h-6" />
-                        </button>
-                        <button className="text-white transition">
-                          <Bookmark
-                            className={`w-6 h-6 ${
-                              isSaved ? "fill-white text-white" : "text-white"
-                            }`}
-                          />
-                        </button>
-                      </div>
+                    <div>
+                      <p className="text-sm text-white mb-1">
+                        <span className="font-medium">
+                          {post.name ||
+                            post.userName ||
+                            (typeof post.userId === "number"
+                              ? `User ${post.userId}`
+                              : post.userId)}
+                        </span>{" "}
+                        {post.title}
+                      </p>
+                      <p className="text-sm text-slate-400 line-clamp-2">
+                        {post.content}
+                      </p>
+                    </div>
+
+                    <div>
+                      <p className="text-sm font-medium text-white mb-2">
+                        좋아요 {post.likeCount || 0}개
+                      </p>
+                    </div>
+
+                    {/* Post Actions */}
+                    <div className="flex items-center gap-4">
                       <button
-                        onClick={() => handleSave(post.board_id)}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleLike(post.boardId);
+                        }}
+                        className="transition"
+                      >
+                        <Heart
+                          className={`w-6 h-6 ${
+                            isLiked ? "fill-red-500 text-red-500" : "text-white"
+                          }`}
+                        />
+                      </button>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          viewPost(post);
+                        }}
+                        className="text-white transition"
+                      >
+                        <MessageCircle className="w-6 h-6" />
+                      </button>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleSave(post.boardId);
+                        }}
                         className="transition"
                       >
                         <Bookmark
@@ -389,28 +671,6 @@ export default function PostsPage() {
                         />
                       </button>
                     </div>
-
-                    <div>
-                      <p className="text-sm font-medium text-white mb-1">
-                        좋아요 {Math.floor(Math.random() * 500) + 10}개
-                      </p>
-                      <p className="text-sm text-white">
-                        <span className="font-medium">{post.user_id}</span>{" "}
-                        {post.title}
-                      </p>
-                      <p className="text-sm text-slate-400 mt-1">
-                        {post.content}
-                      </p>
-                    </div>
-
-                    {postComments.length > 0 && (
-                      <button
-                        onClick={() => viewPost(post)}
-                        className="text-sm text-slate-400 hover:text-white transition"
-                      >
-                        댓글 {postComments.length}개 모두 보기
-                      </button>
-                    )}
                   </div>
                 </div>
               );
@@ -418,16 +678,12 @@ export default function PostsPage() {
           </div>
         )}
 
-        {activeTab === "question" && (
+        {!loading && !error && activeTab === "question" && (
           <div className="space-y-3">
-            {currentPosts.map((post) => {
-              const keywords = getPostKeywords(post.board_id);
-              const postComments = getPostComments(post.board_id);
-              const votes = Math.floor(Math.random() * 50) - 10;
-
+            {posts.map((post) => {
               return (
                 <div
-                  key={post.board_id}
+                  key={post.boardId}
                   onClick={() => viewPost(post)}
                   className="bg-[#2B2C28] rounded-lg p-5 border border-[#2B2C28]/50 hover:border-[#339989]/50 transition cursor-pointer"
                 >
@@ -435,22 +691,18 @@ export default function PostsPage() {
                     {/* Stats Column */}
                     <div className="flex-shrink-0 flex flex-col items-center gap-4 text-center min-w-[80px]">
                       <div>
-                        <div
-                          className={`text-lg font-bold ${
-                            votes > 0 ? "text-[#7DE2D1]" : "text-slate-400"
-                          }`}
-                        >
-                          {votes}
+                        <div className="text-lg font-bold text-slate-400">
+                          {post.likeCount || 0}
                         </div>
                         <div className="text-xs text-slate-500">추천</div>
                       </div>
                       <div>
                         <div
                           className={`text-lg font-bold ${
-                            post.is_solved ? "text-[#339989]" : "text-slate-400"
+                            post.isSolved ? "text-[#339989]" : "text-slate-400"
                           }`}
                         >
-                          {postComments.length}
+                          -
                         </div>
                         <div className="text-xs text-slate-500">답변</div>
                       </div>
@@ -468,7 +720,7 @@ export default function PostsPage() {
                         <h3 className="text-lg font-semibold text-white hover:text-[#7DE2D1] transition line-clamp-2">
                           {post.title}
                         </h3>
-                        {post.is_solved && (
+                        {post.isSolved && (
                           <span className="flex-shrink-0 px-2 py-1 bg-[#339989]/20 text-[#7DE2D1] text-xs font-medium rounded-md border border-[#339989]">
                             해결됨
                           </span>
@@ -481,22 +733,21 @@ export default function PostsPage() {
 
                       <div className="flex items-center justify-between">
                         <div className="flex flex-wrap gap-2">
-                          {keywords.map((tag) => (
-                            <span
-                              key={tag.keyword_id}
-                              className="px-2 py-1 bg-[#131515] text-[#7DE2D1] text-xs rounded-md border border-[#339989]/30"
-                            >
-                              {tag.keyword}
-                            </span>
-                          ))}
+                          {/* 키워드는 백엔드에서 제공하지 않으므로 제거 */}
                         </div>
 
                         <div className="flex items-center gap-2 text-xs text-slate-400">
                           <User className="w-4 h-4" />
-                          <span>{post.user_id}</span>
+                          <span>
+                            {post.name ||
+                              post.userName ||
+                              (typeof post.userId === "number"
+                                ? `User ${post.userId}`
+                                : post.userId)}
+                          </span>
                           <span>•</span>
                           <span>
-                            {new Date(post.created_at).toLocaleDateString()}
+                            {new Date(post.createdAt).toLocaleDateString()}
                           </span>
                         </div>
                       </div>
@@ -509,7 +760,7 @@ export default function PostsPage() {
         )}
 
         {/* Pagination */}
-        {totalPages > 1 && (
+        {!loading && !error && pagination.totalPages > 1 && (
           <div className="flex items-center justify-center gap-2 mt-8">
             <Button
               onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
@@ -519,23 +770,27 @@ export default function PostsPage() {
               <ChevronLeft className="w-4 h-4" />
             </Button>
 
-            {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
-              <Button
-                key={page}
-                onClick={() => setCurrentPage(page)}
-                className={`px-4 py-2 rounded-lg transition ${
-                  currentPage === page
-                    ? "bg-[#339989] text-white font-medium"
-                    : "bg-[#2B2C28] text-slate-400 hover:bg-[#339989] hover:text-white"
-                }`}
-              >
-                {page}
-              </Button>
-            ))}
+            {Array.from({ length: pagination.totalPages }, (_, i) => i + 1).map(
+              (page) => (
+                <Button
+                  key={page}
+                  onClick={() => setCurrentPage(page)}
+                  className={`px-4 py-2 rounded-lg transition ${
+                    currentPage === page
+                      ? "bg-[#339989] text-white font-medium"
+                      : "bg-[#2B2C28] text-slate-400 hover:bg-[#339989] hover:text-white"
+                  }`}
+                >
+                  {page}
+                </Button>
+              )
+            )}
 
             <Button
-              onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
-              disabled={currentPage === totalPages}
+              onClick={() =>
+                setCurrentPage((p) => Math.min(pagination.totalPages, p + 1))
+              }
+              disabled={currentPage === pagination.totalPages}
               className="px-3 py-2 bg-[#2B2C28] text-white rounded-lg disabled:opacity-50 disabled:cursor-not-allowed hover:bg-[#339989] transition"
             >
               <ChevronRight className="w-4 h-4" />
@@ -557,7 +812,10 @@ export default function PostsPage() {
                   : "질문하기"}
               </h2>
               <Button
-                onClick={() => setShowWriteModal(false)}
+                onClick={() => {
+                  setShowWriteModal(false);
+                  setEditingPost(null);
+                }}
                 className="p-2 hover:bg-[#2B2C28] rounded transition"
               >
                 <X className="w-5 h-5 text-slate-400" />
@@ -618,16 +876,24 @@ export default function PostsPage() {
               <div className="flex justify-end gap-3 pt-4">
                 <Button
                   type="button"
-                  onClick={() => setShowWriteModal(false)}
+                  onClick={() => {
+                    setShowWriteModal(false);
+                    setEditingPost(null);
+                  }}
                   className="px-4 py-2 text-slate-400 hover:text-white transition"
                 >
                   취소
                 </Button>
                 <Button
                   type="submit"
-                  className="px-6 py-2 bg-[#339989] text-white rounded-lg hover:bg-[#7DE2D1] transition font-medium"
+                  disabled={submitting}
+                  className="px-6 py-2 bg-[#339989] text-white rounded-lg hover:bg-[#7DE2D1] transition font-medium disabled:opacity-50"
                 >
-                  {editingPost ? "수정하기" : "작성하기"}
+                  {submitting
+                    ? "처리 중..."
+                    : editingPost
+                    ? "수정하기"
+                    : "작성하기"}
                 </Button>
               </div>
             </form>
@@ -641,15 +907,39 @@ export default function PostsPage() {
           <div className="bg-[#1a1a18] border border-[#2B2C28] rounded-lg w-full max-w-4xl max-h-[90vh] overflow-y-auto">
             <div className="p-6 border-b border-[#2B2C28] flex items-center justify-between sticky top-0 bg-[#1a1a18] z-10">
               <h2 className="text-xl font-bold text-white">게시글 상세</h2>
-              <Button
-                onClick={() => {
-                  setShowDetailModal(false);
-                  setSelectedPost(null);
-                }}
-                className="p-2 hover:bg-[#2B2C28] rounded transition"
-              >
-                <X className="w-5 h-5 text-slate-400" />
-              </Button>
+              <div className="flex items-center gap-2">
+                {currentUserId !== null &&
+                  ((selectedPost.userIdx !== undefined &&
+                    selectedPost.userIdx === currentUserId) ||
+                    (typeof selectedPost.userId === "number" &&
+                      selectedPost.userId === currentUserId)) && (
+                    <>
+                      <Button
+                        onClick={() => editPost(selectedPost)}
+                        className="px-3 py-1 text-sm bg-[#339989] text-white rounded hover:bg-[#7DE2D1] transition"
+                      >
+                        수정
+                      </Button>
+                      <Button
+                        onClick={() => deletePost(selectedPost.boardId)}
+                        className="px-3 py-1 text-sm bg-red-500/20 text-red-400 rounded hover:bg-red-500/30 transition"
+                      >
+                        삭제
+                      </Button>
+                    </>
+                  )}
+                <Button
+                  onClick={() => {
+                    setShowDetailModal(false);
+                    setSelectedPost(null);
+                    setSelectedPostFiles([]);
+                    setSelectedPostComments([]);
+                  }}
+                  className="p-2 hover:bg-[#2B2C28] rounded transition"
+                >
+                  <X className="w-5 h-5 text-slate-400" />
+                </Button>
+              </div>
             </div>
 
             <div className="p-6">
@@ -660,20 +950,22 @@ export default function PostsPage() {
                   </h1>
                   <div className="flex items-center gap-4 text-sm text-slate-400">
                     <span className="font-medium text-white">
-                      {selectedPost.user_id}
+                      {selectedPost.name ||
+                        selectedPost.userName ||
+                        (typeof selectedPost.userId === "number"
+                          ? `User ${selectedPost.userId}`
+                          : selectedPost.userId)}
                     </span>
                     <span>•</span>
                     <span>
-                      {new Date(selectedPost.created_at).toLocaleString(
-                        "ko-KR"
-                      )}
+                      {new Date(selectedPost.createdAt).toLocaleString("ko-KR")}
                     </span>
                     <span>•</span>
                     <div className="flex items-center gap-1">
                       <Eye className="w-4 h-4" />
                       <span>{selectedPost.views} 조회</span>
                     </div>
-                    {selectedPost.is_solved && (
+                    {selectedPost.isSolved && (
                       <>
                         <span>•</span>
                         <span className="px-2 py-1 bg-[#339989] text-white text-xs rounded">
@@ -684,17 +976,19 @@ export default function PostsPage() {
                   </div>
                 </div>
 
-                {selectedPost.type === "question" && (
-                  <div className="flex gap-2">
-                    {getPostKeywords(selectedPost.board_id).map((tag) => (
-                      <span
-                        key={tag.keyword_id}
-                        className="px-3 py-1 bg-[#2B2C28] text-[#7DE2D1] text-sm rounded-full flex items-center gap-1"
-                      >
-                        <Plus className="w-3 h-3" />
-                        {tag.keyword}
-                      </span>
-                    ))}
+                {/* 파일 표시 */}
+                {selectedPostFiles.length > 0 && (
+                  <div className="space-y-2">
+                    {selectedPostFiles
+                      .filter((f) => f.isMainImage)
+                      .map((file) => (
+                        <img
+                          key={file.fileKey}
+                          src={`${API_BASE_URL}${file.filePath}`}
+                          alt={file.fileName}
+                          className="w-full rounded-lg"
+                        />
+                      ))}
                   </div>
                 )}
 
@@ -704,58 +998,200 @@ export default function PostsPage() {
                   </p>
                 </div>
 
+                {/* 첨부 파일 목록 */}
+                {selectedPostFiles.length > 0 && (
+                  <div className="border-t border-[#2B2C28] pt-4">
+                    <h3 className="text-white font-medium mb-2">첨부 파일</h3>
+                    <div className="space-y-2">
+                      {selectedPostFiles.map((file) => (
+                        <a
+                          key={file.fileKey}
+                          href={`${API_BASE_URL}${file.filePath}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="block text-[#7DE2D1] hover:underline text-sm"
+                        >
+                          {file.fileName}
+                        </a>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
                 <div className="flex items-center gap-6 pt-4 border-t border-[#2B2C28]">
                   <Button
-                    onClick={() => handleLike(selectedPost.board_id)}
+                    onClick={() => handleLike(selectedPost.boardId)}
                     className={`flex items-center gap-2 transition ${
-                      likedPosts.has(selectedPost.board_id)
+                      likedPosts.has(selectedPost.boardId)
                         ? "text-[#7DE2D1]"
                         : "text-slate-400 hover:text-[#7DE2D1]"
                     }`}
                   >
                     <Heart
                       className={`w-5 h-5 ${
-                        likedPosts.has(selectedPost.board_id)
+                        likedPosts.has(selectedPost.boardId)
                           ? "fill-current"
                           : ""
                       }`}
                     />
-                    <span className="text-sm">좋아요</span>
+                    <span className="text-sm">
+                      좋아요 {selectedPost.likeCount || 0}
+                    </span>
                   </Button>
                 </div>
 
                 <div className="border-t border-[#2B2C28] pt-6">
                   <h3 className="text-white font-medium mb-4">
                     {selectedPost.type === "question" ? "답변" : "댓글"}{" "}
-                    {getPostComments(selectedPost.board_id).length}개
+                    {selectedPostComments.length}개
                   </h3>
+
+                  {/* 댓글 작성 폼 */}
+                  <div className="mb-6">
+                    <textarea
+                      value={commentText[selectedPost.boardId] || ""}
+                      onChange={(e) =>
+                        setCommentText({
+                          ...commentText,
+                          [selectedPost.boardId]: e.target.value,
+                        })
+                      }
+                      placeholder="댓글을 입력하세요..."
+                      rows={3}
+                      className="w-full bg-[#131515] border border-[#2B2C28] rounded-lg px-4 py-2 text-white resize-none focus:outline-none focus:border-[#339989] transition mb-2"
+                    />
+                    <Button
+                      onClick={() => handleCommentSubmit(selectedPost.boardId)}
+                      disabled={
+                        submitting || !commentText[selectedPost.boardId]?.trim()
+                      }
+                      className="px-4 py-2 bg-[#339989] text-white rounded-lg hover:bg-[#7DE2D1] transition disabled:opacity-50"
+                    >
+                      {submitting ? "작성 중..." : "댓글 작성"}
+                    </Button>
+                  </div>
+
                   <div className="space-y-4">
-                    {getPostComments(selectedPost.board_id).map((comment) => (
-                      <div key={comment.reply_id} className="flex gap-3">
+                    {selectedPostComments.map((comment) => (
+                      <div key={comment.replyId} className="flex gap-3">
                         <div className="w-8 h-8 rounded-full bg-[#2B2C28]" />
                         <div className="flex-1">
                           <div className="flex items-center gap-2 text-sm text-slate-400 mb-1">
                             <span className="text-white font-medium">
-                              {comment.user_id}
+                              {comment.name ||
+                                comment.userName ||
+                                (typeof comment.userId === "number"
+                                  ? `User ${comment.userId}`
+                                  : comment.userId) ||
+                                (comment.userIdx
+                                  ? `User ${comment.userIdx}`
+                                  : "익명")}
                             </span>
                             <span>•</span>
                             <span>
-                              {new Date(comment.created_at).toLocaleString(
+                              {new Date(comment.createdAt).toLocaleString(
                                 "ko-KR"
                               )}
                             </span>
-                            {comment.is_selected && (
+                            {comment.isSelected && (
                               <span className="px-2 py-0.5 bg-[#339989] text-white text-xs rounded">
                                 채택됨
                               </span>
                             )}
+                            {isMyComment(comment) && (
+                              <div className="flex items-center gap-2 ml-auto">
+                                {editingCommentId === comment.replyId ? (
+                                  <>
+                                    <Button
+                                      onClick={() =>
+                                        handleUpdateComment(
+                                          selectedPost.boardId,
+                                          comment.replyId
+                                        )
+                                      }
+                                      disabled={submitting}
+                                      className="px-2 py-1 text-xs bg-[#339989] text-white rounded hover:bg-[#7DE2D1] transition disabled:opacity-50"
+                                    >
+                                      저장
+                                    </Button>
+                                    <Button
+                                      onClick={handleCancelEdit}
+                                      disabled={submitting}
+                                      className="px-2 py-1 text-xs bg-[#2B2C28] text-slate-400 rounded hover:bg-[#2B2C28]/80 transition"
+                                    >
+                                      취소
+                                    </Button>
+                                  </>
+                                ) : (
+                                  <>
+                                    <Button
+                                      onClick={() => handleEditComment(comment)}
+                                      className="px-2 py-1 text-xs text-slate-400 hover:text-white transition"
+                                    >
+                                      수정
+                                    </Button>
+                                    <Button
+                                      onClick={() =>
+                                        handleDeleteComment(
+                                          selectedPost.boardId,
+                                          comment.replyId
+                                        )
+                                      }
+                                      disabled={submitting}
+                                      className="px-2 py-1 text-xs text-red-400 hover:text-red-300 transition disabled:opacity-50"
+                                    >
+                                      삭제
+                                    </Button>
+                                  </>
+                                )}
+                              </div>
+                            )}
                           </div>
-                          <p className="text-sm text-slate-300">
-                            {comment.content}
-                          </p>
+                          {editingCommentId === comment.replyId ? (
+                            <textarea
+                              value={editCommentText[comment.replyId] || ""}
+                              onChange={(e) =>
+                                setEditCommentText({
+                                  ...editCommentText,
+                                  [comment.replyId]: e.target.value,
+                                })
+                              }
+                              rows={3}
+                              className="w-full bg-[#131515] border border-[#2B2C28] rounded-lg px-4 py-2 text-white resize-none focus:outline-none focus:border-[#339989] transition mb-2"
+                            />
+                          ) : (
+                            <p className="text-sm text-slate-300">
+                              {comment.reply || comment.content}
+                            </p>
+                          )}
+                          {selectedPost.type === "question" &&
+                            !comment.isSelected &&
+                            editingCommentId !== comment.replyId &&
+                            currentUserId !== null &&
+                            ((selectedPost.userIdx !== undefined &&
+                              selectedPost.userIdx === currentUserId) ||
+                              (typeof selectedPost.userId === "number" &&
+                                selectedPost.userId === currentUserId)) && (
+                              <Button
+                                onClick={() =>
+                                  handleSelectComment(
+                                    selectedPost.boardId,
+                                    comment.replyId
+                                  )
+                                }
+                                className="mt-2 px-3 py-1 text-xs bg-[#339989] text-white rounded hover:bg-[#7DE2D1] transition"
+                              >
+                                채택하기
+                              </Button>
+                            )}
                         </div>
                       </div>
                     ))}
+                    {selectedPostComments.length === 0 && (
+                      <p className="text-slate-400 text-sm text-center py-4">
+                        댓글이 없습니다.
+                      </p>
+                    )}
                   </div>
                 </div>
               </div>
