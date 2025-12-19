@@ -428,4 +428,15 @@ export const myApi = {
       method: "DELETE",
     });
   },
+
+  // 코드 분석 결과 저장
+  createArchive: async (data: {
+    analysisText?: string;
+    rawResponse: string | object;
+  }) => {
+    return apiCall<{ message: string; archive: any }>("/my/archive", {
+      method: "POST",
+      body: JSON.stringify(data),
+    });
+  },
 };
