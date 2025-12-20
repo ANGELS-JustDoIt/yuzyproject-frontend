@@ -33,6 +33,7 @@ interface Member {
   email: string;
   hope_job: string;
   created_at: string;
+  profile_image_url?: string;
 }
 
 interface Grass {
@@ -268,6 +269,7 @@ export default function MyPage() {
             email: profileData.profile.email || "",
             hope_job: profileData.profile.hopeJob || "",
             created_at: profileData.profile.createdAt || "",
+            profile_image_url: profileData.profile.profileImageUrl || profileData.profile.profile_image_url || undefined,
           });
           setCurrentUserId(profileData.profile.userIdx || null);
         }
@@ -1115,55 +1117,49 @@ export default function MyPage() {
         ) : (
           <>
             {/* 프로필 헤더 */}
-            <div className="mb-8 flex items-start justify-between">
-              <div className="flex items-start gap-6">
-                <div className="w-24 h-24 rounded-full bg-gradient-to-br from-[#339989] to-[#7DE2D1] flex items-center justify-center border-4 border-[#2B2C28]">
+            <div className="mb-8 flex items-start gap-6">
+              <div className="relative w-24 h-24 rounded-full bg-gradient-to-br from-[#339989] to-[#7DE2D1] flex items-center justify-center border-4 border-[#2B2C28] overflow-hidden">
+                {member?.profile_image_url ? (
+                  <img
+                    src={member.profile_image_url.startsWith('http') ? member.profile_image_url : `${API_BASE_URL}${member.profile_image_url}`}
+                    alt="프로필 사진"
+                    className="w-full h-full object-cover"
+                    onError={(e) => {
+                      // 이미지 로드 실패 시 기본 표시로 fallback
+                      const target = e.target as HTMLImageElement;
+                      target.style.display = 'none';
+                      const parent = target.parentElement;
+                      if (parent && !parent.querySelector('span')) {
+                        const span = document.createElement('span');
+                        span.className = 'text-3xl font-bold text-white';
+                        span.textContent = (member?.user_id || "U").charAt(0).toUpperCase();
+                        parent.appendChild(span);
+                      }
+                    }}
+                  />
+                ) : null}
+                {!member?.profile_image_url && (
                   <span className="text-3xl font-bold text-white">
                     {(member?.user_id || "U").charAt(0).toUpperCase()}
                   </span>
-                </div>
-                <div>
-                  <div className="flex items-center gap-3 mb-2">
-                    <h1 className="text-2xl font-bold text-white">
-                      {member?.user_id || "로딩 중..."}님
-                    </h1>
-                  </div>
-                  <p className="text-slate-400 text-sm mb-4">
-                    {member?.hope_job || ""}
-                  </p>
-                  <button
-                    onClick={() => setActiveSection("profile")}
-                    className="text-sm text-[#339989] hover:text-[#7DE2D1] transition flex items-center gap-1"
-                  >
-                    <User className="w-4 h-4" />
-                    수정
-                  </button>
-                </div>
+                )}
               </div>
-
-              <div className="flex items-center gap-8">
-                <div className="text-center">
-                  <div className="text-2xl font-bold text-[#7DE2D1]">
-                    {stats?.viewsCount ?? 0}
-                  </div>
-                  <div className="text-xs text-slate-400 mt-1">조회</div>
+              <div>
+                <div className="flex items-center gap-3 mb-2">
+                  <h1 className="text-2xl font-bold text-white">
+                    {member?.user_id || "로딩 중..."}님
+                  </h1>
                 </div>
-                <div className="text-center">
-                  <div className="text-2xl font-bold text-[#7DE2D1]">
-                    {stats?.scrapsCount ?? scraps.length}
-                  </div>
-                  <div className="text-xs text-slate-400 mt-1">스크랩</div>
-                </div>
-                <div className="text-center">
-                  <div className="text-2xl font-bold text-[#7DE2D1]">
-                    {stats?.archivesCount ?? archives.length}
-                  </div>
-                  <div className="text-xs text-slate-400 mt-1">컬렉션</div>
-                </div>
-                <div className="text-center">
-                  <div className="text-2xl font-bold text-[#7DE2D1]">0</div>
-                  <div className="text-xs text-slate-400 mt-1">형광펜</div>
-                </div>
+                <p className="text-slate-400 text-sm mb-4">
+                  {member?.hope_job || ""}
+                </p>
+                <button
+                  onClick={() => setActiveSection("profile")}
+                  className="text-sm text-[#339989] hover:text-[#7DE2D1] transition flex items-center gap-1"
+                >
+                  <User className="w-4 h-4" />
+                  수정
+                </button>
               </div>
             </div>
 
@@ -1700,6 +1696,7 @@ export default function MyPage() {
                                 result.profile.created_at ||
                                 member?.created_at ||
                                 "",
+                              profile_image_url: result.profile.profileImageUrl || result.profile.profile_image_url || member?.profile_image_url,
                             });
                             alert("프로필이 성공적으로 업데이트되었습니다.");
                             setActiveSection(null);
