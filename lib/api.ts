@@ -300,15 +300,60 @@ export const myApi = {
     });
   },
 
-  updateProfile: async (data: {
-    email?: string;
-    hope_job?: string;
-    password?: string;
-  }) => {
-    return apiCall<{ message: string; profile: any }>("/my/profile", {
-      method: "PUT",
-      body: JSON.stringify(data),
-    });
+  updateProfile: async (
+    data?: {
+      user_name?: string;
+      hope_job?: string;
+      password?: string;
+    },
+    formData?: FormData
+  ) => {
+    const token = getToken();
+    if (!token) {
+      throw new Error("인증이 필요합니다");
+    }
+
+    // FormData가 있으면 FormData로 전송, 없으면 JSON으로 전송
+    const body = formData || (data ? JSON.stringify(data) : null);
+    
+    let response: Response;
+    try {
+      response = await fetch(`${API_BASE_URL}/my/profile`, {
+        method: "PUT",
+        headers: formData
+          ? {
+              Authorization: `Bearer ${token}`,
+            }
+          : {
+              Authorization: `Bearer ${token}`,
+              "Content-Type": "application/json",
+            },
+        body: body as BodyInit,
+      });
+    } catch (fetchError: any) {
+      throw new Error(
+        `서버 연결 실패: ${fetchError.message || "서버에 연결할 수 없습니다"}`
+      );
+    }
+
+    if (!response.ok) {
+      let errorMessage = `API Error: ${response.status}`;
+      try {
+        const contentType = response.headers.get("content-type");
+        if (contentType && contentType.includes("application/json")) {
+          const error = await response.json();
+          errorMessage = error.message || error || errorMessage;
+        } else {
+          const text = await response.text();
+          errorMessage = text || errorMessage;
+        }
+      } catch (parseError) {
+        errorMessage = response.statusText || `API Error: ${response.status}`;
+      }
+      throw new Error(errorMessage);
+    }
+
+    return response.json();
   },
 
   getGrass: async () => {

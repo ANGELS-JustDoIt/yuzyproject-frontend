@@ -1255,7 +1255,7 @@ export default function MyPage() {
                 >
                   <Archive className="w-8 h-8 text-[#339989] mb-3 group-hover:text-[#7DE2D1] transition" />
                   <h3 className="text-white font-medium mb-1">
-                    공부내용 아카이브
+                    공부 내용 저장소
                   </h3>
                   <p className="text-xs text-slate-400">
                     {archives.length}개의 학습 기록
@@ -1486,11 +1486,11 @@ export default function MyPage() {
               </div>
             )}
 
-            {/* 공부내용 아카이브 */}
+            {/* 공부 내용 저장소 */}
             {activeSection === "archive" && (
               <div className="bg-[#1a1a18] border border-[#2B2C28] rounded-lg p-6 mb-8">
                 <h2 className="text-xl font-bold text-white mb-4">
-                  공부내용 아카이브
+                  공부 내용 저장소
                 </h2>
                 {archives.length === 0 ? (
                   <div className="text-center py-12">
@@ -1653,35 +1653,51 @@ export default function MyPage() {
                       try {
                         const { myApi } = await import("@/lib/api");
                         const updateData: {
-                          email?: string;
+                          user_name?: string;
                           hope_job?: string;
                           password?: string;
                         } = {};
-                        const email = formData.get("email") as string;
+                        const user_name = formData.get("user_name") as string;
                         const hope_job = formData.get("hope_job") as string;
                         const password = formData.get("password") as string;
+                        const profileImage = formData.get("profileImage") as File | null;
 
-                        if (email && email !== member?.email)
-                          updateData.email = email;
+                        if (user_name && user_name !== member?.user_id)
+                          updateData.user_name = user_name;
                         if (hope_job && hope_job !== member?.hope_job)
                           updateData.hope_job = hope_job;
                         if (password && password.trim())
                           updateData.password = password;
+                        
+                        // 프로필 이미지가 있으면 FormData로 전송
+                        const formDataToSend = new FormData();
+                        if (updateData.user_name) formDataToSend.append("user_name", updateData.user_name);
+                        if (updateData.hope_job) formDataToSend.append("hope_job", updateData.hope_job);
+                        if (updateData.password) formDataToSend.append("password", updateData.password);
+                        if (profileImage && profileImage.size > 0) {
+                          formDataToSend.append("profileImage", profileImage);
+                        }
 
-                        if (Object.keys(updateData).length > 0) {
-                          const result = await myApi.updateProfile(updateData);
+                        // FormData에 데이터가 있으면 FormData로 전송, 아니면 JSON으로 전송
+                        const hasData = Object.keys(updateData).length > 0 || (profileImage && profileImage.size > 0);
+                        if (hasData) {
+                          const result = profileImage && profileImage.size > 0
+                            ? await myApi.updateProfile(updateData, formDataToSend)
+                            : await myApi.updateProfile(updateData);
                           if (result.profile) {
                             setMember({
                               user_id:
                                 result.profile.userId ||
                                 result.profile.userName ||
+                                result.profile.user_name ||
                                 member?.user_id ||
                                 "",
                               password: "",
-                              email: result.profile.email || "",
-                              hope_job: result.profile.hopeJob || "",
+                              email: result.profile.email || member?.email || "",
+                              hope_job: result.profile.hopeJob || result.profile.hope_job || "",
                               created_at:
                                 result.profile.createdAt ||
+                                result.profile.created_at ||
                                 member?.created_at ||
                                 "",
                             });
@@ -1702,13 +1718,13 @@ export default function MyPage() {
                   >
                     <div>
                       <label className="block text-sm font-medium text-slate-400 mb-2">
-                        사용자 ID
+                        닉네임
                       </label>
                       <input
                         type="text"
+                        name="user_name"
                         defaultValue={member?.user_id || ""}
-                        disabled
-                        className="w-full bg-[#131515] border border-[#2B2C28] rounded-lg px-4 py-2 text-slate-500 cursor-not-allowed"
+                        className="w-full bg-[#131515] border border-[#2B2C28] rounded-lg px-4 py-2 text-white focus:outline-none focus:border-[#339989] transition"
                       />
                     </div>
 
@@ -1718,9 +1734,21 @@ export default function MyPage() {
                       </label>
                       <input
                         type="email"
-                        name="email"
                         defaultValue={member?.email || ""}
-                        className="w-full bg-[#131515] border border-[#2B2C28] rounded-lg px-4 py-2 text-white focus:outline-none focus:border-[#339989] transition"
+                        disabled
+                        className="w-full bg-[#131515] border border-[#2B2C28] rounded-lg px-4 py-2 text-slate-500 cursor-not-allowed"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-slate-400 mb-2">
+                        프로필 사진
+                      </label>
+                      <input
+                        type="file"
+                        name="profileImage"
+                        accept="image/*"
+                        className="w-full bg-[#131515] border border-[#2B2C28] rounded-lg px-4 py-2 text-white focus:outline-none focus:border-[#339989] transition file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-[#339989] file:text-white hover:file:bg-[#7DE2D1] cursor-pointer"
                       />
                     </div>
 
