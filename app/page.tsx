@@ -7,6 +7,7 @@ import { ArrowRight, Code2, Zap, Eye, MessageSquare, X } from "lucide-react";
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { getToken } from "@/lib/api";
+import Header from "@/components/Header";
 
 export default function Home() {
   const [showAuthModal, setShowAuthModal] = useState(false);
@@ -45,53 +46,7 @@ export default function Home() {
 
   return (
     <main className="min-h-screen" style={{ backgroundColor: "#131515" }}>
-      {/* Navigation */}
-      <nav className="fixed top-0 w-full z-50 border-b border-[#2B2C28] bg-[#131515]/80 backdrop-blur-xl">
-        <div className="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="w-8 h-8 bg-[#339989] rounded-lg flex items-center justify-center">
-              <Code2 className="w-5 h-5 text-white" />
-            </div>
-            <span className="text-xl font-bold text-white">유지프로젝트</span>
-          </div>
-          <div className="hidden md:flex items-center gap-10">
-            <a
-              href="#features"
-              onClick={(e) => handleSmoothScroll(e, "#features")}
-              className="text-slate-400 hover:text-[#7DE2D1] transition text-sm font-medium"
-            >
-              기능
-            </a>
-            <a
-              href="#benefits"
-              onClick={(e) => handleSmoothScroll(e, "#benefits")}
-              className="text-slate-400 hover:text-[#7DE2D1] transition text-sm font-medium"
-            >
-              솔루션
-            </a>
-            <a
-              href="#community"
-              onClick={(e) => handleSmoothScroll(e, "#community")}
-              className="text-slate-400 hover:text-[#7DE2D1] transition text-sm font-medium"
-            >
-              커뮤니티
-            </a>
-          </div>
-          <Button
-            onClick={() => {
-              if (isLoggedIn) {
-                router.push("/code");
-              } else {
-                setShowAuthModal(true);
-              }
-            }}
-            className="text-white font-semibold h-10"
-            style={{ backgroundColor: "#339989" }}
-          >
-            {isLoggedIn ? "코드 분석" : "시작하기"}
-          </Button>
-        </div>
-      </nav>
+      <Header />
 
       {/* Hero Section */}
       <section className="pt-40 pb-32 px-6 text-center relative overflow-hidden">
