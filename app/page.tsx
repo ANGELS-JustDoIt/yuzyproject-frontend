@@ -154,11 +154,9 @@ export default function Home() {
           <div className="grid md:grid-cols-2 gap-16 items-center">
             <div>
               <div className="rounded-xl overflow-hidden border border-[#2B2C28] bg-[#1a1a18]">
-                <img
-                  src="/code-flow-diagram-visualization-network-graph-stru.jpg"
-                  alt="코드 흐름 시각화"
-                  className="w-full h-auto"
-                />
+                <div className="w-full h-64 bg-gradient-to-br from-[#339989]/20 to-[#7DE2D1]/20 flex items-center justify-center">
+                  <Code2 className="w-24 h-24 text-[#339989]/50" />
+                </div>
               </div>
             </div>
             {/* 텍스트 */}
@@ -169,9 +167,7 @@ export default function Home() {
                 </span>
               </div>
               <h2 className="text-5xl font-bold text-white mb-6 leading-tight">
-                코드 흐름
-                <br />
-                시각화
+                코드 흐름 시각화
               </h2>
               <p className="text-slate-400 mb-10 leading-relaxed text-base font-light">
                 코드 폴더를 업로드하면 함수 호출 흐름, 의존성 관계, 데이터
@@ -221,8 +217,7 @@ export default function Home() {
                 </span>
               </div>
               <h2 className="text-5xl font-bold text-white mb-6 leading-tight">
-                화면 캡처
-                <br />& OCR
+                화면 캡처 및 OCR 기능
               </h2>
               <p className="text-slate-400 mb-10 leading-relaxed text-base font-light">
                 수업 중 버튼 한 번으로 화면을 자유롭게 크롭한 후, AI가 이미지
@@ -258,11 +253,9 @@ export default function Home() {
             </div>
             <div>
               <div className="rounded-xl overflow-hidden border border-[#2B2C28] bg-[#131515]">
-                <img
-                  src="/screenshot-capture-ocr-text-extraction-interface.jpg"
-                  alt="화면 캡처 및 OCR 기능"
-                  className="w-full h-auto"
-                />
+                <div className="w-full h-64 bg-gradient-to-br from-[#339989]/20 to-[#7DE2D1]/20 flex items-center justify-center">
+                  <Eye className="w-24 h-24 text-[#7DE2D1]/50" />
+                </div>
               </div>
             </div>
           </div>
@@ -276,11 +269,9 @@ export default function Home() {
             {/* 이미지 */}
             <div>
               <div className="rounded-xl overflow-hidden border border-[#2B2C28] bg-[#1a1a18]">
-                <img
-                  src="/community-forum-discussion-board-q.jpg"
-                  alt="원생 커뮤니티 Q&A 게시판"
-                  className="w-full h-auto"
-                />
+                <div className="w-full h-64 bg-gradient-to-br from-[#339989]/20 to-[#7DE2D1]/20 flex items-center justify-center">
+                  <MessageSquare className="w-24 h-24 text-[#FFB563]/50" />
+                </div>
               </div>
             </div>
             {/* 텍스트 */}
