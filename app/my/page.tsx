@@ -1,6 +1,7 @@
 "use client";
 import { useState, useEffect } from "react";
 import type React from "react";
+import { useRouter } from "next/navigation";
 
 import {
   Bell,
@@ -193,6 +194,7 @@ const mockNotifications: Noti[] = [
 ];
 
 export default function MyPage() {
+  const router = useRouter();
   const [member, setMember] = useState<Member | null>(null);
   const [grassData, setGrassData] = useState<Grass[]>([]);
   const [archives, setArchives] = useState<StudyArchive[]>([]);
@@ -991,6 +993,45 @@ export default function MyPage() {
     }
   };
 
+  // 아카이브 항목 클릭 시 visualize 페이지로 이동
+  const handleArchiveClick = (archive: StudyArchive) => {
+    try {
+      // raw_response를 파싱하여 localStorage에 저장
+      let parsedData;
+      const rawResponseStr = archive.raw_response || "";
+
+      if (!rawResponseStr) {
+        throw new Error("분석 결과 데이터가 없습니다.");
+      }
+
+      try {
+        parsedData = JSON.parse(rawResponseStr);
+      } catch (parseError) {
+        throw new Error("분석 결과 데이터를 파싱할 수 없습니다.");
+      }
+
+      // 데이터 구조 검증 (api 필드가 있는지 확인)
+      if (!parsedData || typeof parsedData !== "object") {
+        throw new Error("데이터 형식이 올바르지 않습니다.");
+      }
+
+      // visualize 페이지에서 필요한 api 필드 검증
+      if (!parsedData.api || !Array.isArray(parsedData.api)) {
+        throw new Error("분석 결과에 API 데이터가 없습니다. 코드 분석 결과 형식이 올바르지 않을 수 있습니다.");
+      }
+
+      // localStorage에 저장 (visualize 페이지에서 읽을 수 있도록)
+      localStorage.setItem("analysisResult", JSON.stringify(parsedData));
+
+      // visualize 페이지로 이동
+      router.push("/visualize");
+    } catch (error) {
+      console.error("아카이브 데이터 처리 오류:", error);
+      const errorMessage = error instanceof Error ? error.message : "아카이브 데이터를 불러오는데 실패했습니다.";
+      alert(errorMessage);
+    }
+  };
+
   // 스크랩 게시글 수정 저장
   const saveScrapPost = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -1481,7 +1522,8 @@ export default function MyPage() {
                       return (
                         <div
                           key={archive.archive_id}
-                          className="bg-[#131515] border border-[#2B2C28] rounded-lg p-4 hover:border-[#339989] transition"
+                          onClick={() => handleArchiveClick(archive)}
+                          className="bg-[#131515] border border-[#2B2C28] rounded-lg p-4 hover:border-[#339989] transition cursor-pointer"
                         >
                           <div className="flex items-start justify-between mb-2">
                             <h3 className="text-white font-medium">
@@ -1494,7 +1536,7 @@ export default function MyPage() {
                             </span>
                           </div>
                           <div className="mt-3">
-                            <details className="group">
+                            <details className="group" onClick={(e) => e.stopPropagation()}>
                               <summary className="cursor-pointer text-sm text-[#7DE2D1] hover:text-[#339989] transition">
                                 분석 결과 보기
                               </summary>
