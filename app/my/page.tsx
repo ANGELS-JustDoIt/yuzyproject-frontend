@@ -249,12 +249,14 @@ export default function MyPage() {
           scrapsData,
           notificationsData,
           schedulesData,
+          archivesData,
         ] = await Promise.all([
           myApi.getProfile(),
           myApi.getGrass(),
           myApi.getScraps(),
           myApi.getNotifications(),
           myApi.getSchedules(startDate, endDate),
+          myApi.getArchives(),
         ]);
 
         // 프로필 및 통계 처리
@@ -273,8 +275,25 @@ export default function MyPage() {
           setStats(profileData.stats);
         }
 
-        // 아카이브 개수만 미리 로드 (전체 데이터는 클릭 시 로드)
-        // 통계에서 아카이브 개수를 가져올 수 있으므로 별도 호출 불필요
+        // 아카이브 처리
+        if (archivesData.archives) {
+          const processedArchives = archivesData.archives.map((a: Record<string, unknown>) => ({
+            user_id: String(
+              a.userId || a.user_id || a.userName || a.user_name || ""
+            ),
+            archive_id: Number(a.archiveId || a.archive_id || 0),
+            analysis_text: String(a.analysisText || a.analysis_text || ""),
+            raw_response: String(a.rawResponse || a.raw_response || ""),
+            created_at: String(a.createdAt || a.created_at || ""),
+          }));
+          // 시간 순서로 정렬 (최신 것부터 오래된 순서)
+          processedArchives.sort((a, b) => {
+            const dateA = new Date(a.created_at).getTime();
+            const dateB = new Date(b.created_at).getTime();
+            return dateB - dateA;
+          });
+          setArchives(processedArchives);
+        }
 
         // 잔디 데이터 처리
         console.log("잔디 데이터 응답:", grassData);
@@ -1231,29 +1250,7 @@ export default function MyPage() {
               {/* 빠른 접근 메뉴 */}
               <div className="grid grid-cols-2 gap-4">
                 <button
-                  onClick={async () => {
-                    setActiveSection("archive");
-                    // 아카이브 데이터 로드
-                    try {
-                      const { myApi } = await import("@/lib/api");
-                      const archivesData = await myApi.getArchives();
-                      if (archivesData.archives) {
-                        setArchives(
-                          archivesData.archives.map((a: Record<string, unknown>) => ({
-                            user_id: String(
-                              a.userId || a.user_id || a.userName || a.user_name || ""
-                            ),
-                            archive_id: Number(a.archiveId || a.archive_id || 0),
-                            analysis_text: String(a.analysisText || a.analysis_text || ""),
-                            raw_response: String(a.rawResponse || a.raw_response || ""),
-                            created_at: String(a.createdAt || a.created_at || ""),
-                          }))
-                        );
-                      }
-                    } catch (error) {
-                      console.error("아카이브 조회 실패:", error);
-                    }
-                  }}
+                  onClick={() => setActiveSection("archive")}
                   className="bg-[#1a1a18] border border-[#2B2C28] rounded-lg p-6 hover:border-[#339989] transition text-left group"
                 >
                   <Archive className="w-8 h-8 text-[#339989] mb-3 group-hover:text-[#7DE2D1] transition" />
@@ -1507,17 +1504,18 @@ export default function MyPage() {
                   </div>
                 ) : (
                   <div className="space-y-3">
-                    {archives.map((archive) => {
-                      // raw_response가 JSON 문자열인 경우 파싱 시도
-                      let rawResponseText = archive.raw_response || "";
-                      try {
-                        const parsed = JSON.parse(rawResponseText);
-                        if (parsed && typeof parsed === "object") {
-                          rawResponseText = JSON.stringify(parsed, null, 2);
-                        }
-                      } catch {
-                        // JSON 파싱 실패 시 원본 텍스트 사용
-                      }
+                    {archives.map((archive, index) => {
+                      // 날짜와 시간 포맷팅
+                      const archiveDate = new Date(archive.created_at);
+                      const year = archiveDate.getFullYear();
+                      const month = String(archiveDate.getMonth() + 1).padStart(2, "0");
+                      const day = String(archiveDate.getDate()).padStart(2, "0");
+                      const formattedDate = `${year}-${month}-${day}`;
+                      const formattedTime = archiveDate.toLocaleTimeString("ko-KR", {
+                        hour: "2-digit",
+                        minute: "2-digit",
+                        hour12: false,
+                      });
 
                       return (
                         <div
@@ -1525,26 +1523,18 @@ export default function MyPage() {
                           onClick={() => handleArchiveClick(archive)}
                           className="bg-[#131515] border border-[#2B2C28] rounded-lg p-4 hover:border-[#339989] transition cursor-pointer"
                         >
-                          <div className="flex items-start justify-between mb-2">
-                            <h3 className="text-white font-medium">
-                              {archive.analysis_text || "코드 분석 결과"}
-                            </h3>
-                            <span className="text-xs text-slate-500">
-                              {new Date(archive.created_at).toLocaleDateString(
-                                "ko-KR"
-                              )}
-                            </span>
-                          </div>
-                          <div className="mt-3">
-                            <details className="group" onClick={(e) => e.stopPropagation()}>
-                              <summary className="cursor-pointer text-sm text-[#7DE2D1] hover:text-[#339989] transition">
-                                분석 결과 보기
-                              </summary>
-                              <pre className="mt-2 p-3 bg-[#0a0a0a] rounded text-xs text-slate-300 overflow-x-auto max-h-96 overflow-y-auto">
-                                {rawResponseText.substring(0, 2000)}
-                                {rawResponseText.length > 2000 && "..."}
-                              </pre>
-                            </details>
+                          <div className="flex items-center gap-3">
+                            <div className="text-base text-slate-400 font-medium min-w-[2rem]">
+                              {index + 1}.
+                            </div>
+                            <div className="flex flex-col gap-1 flex-1">
+                              <div className="text-lg text-white">
+                                {formattedDate}
+                              </div>
+                              <div className="text-base text-[#7DE2D1]">
+                                {formattedTime}
+                              </div>
+                            </div>
                           </div>
                         </div>
                       );
