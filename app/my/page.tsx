@@ -195,7 +195,7 @@ const mockNotifications: Noti[] = [
 export default function MyPage() {
   const [member, setMember] = useState<Member | null>(null);
   const [grassData, setGrassData] = useState<Grass[]>([]);
-  const [archives] = useState<StudyArchive[]>(mockArchives);
+  const [archives, setArchives] = useState<StudyArchive[]>([]);
   const [scraps, setScraps] = useState<Scrap[]>([]);
   const [notifications, setNotifications] = useState<Noti[]>([]);
   const [stats, setStats] = useState<{
@@ -270,6 +270,9 @@ export default function MyPage() {
         if (profileData.stats) {
           setStats(profileData.stats);
         }
+
+        // 아카이브 개수만 미리 로드 (전체 데이터는 클릭 시 로드)
+        // 통계에서 아카이브 개수를 가져올 수 있으므로 별도 호출 불필요
 
         // 잔디 데이터 처리
         console.log("잔디 데이터 응답:", grassData);
@@ -1187,7 +1190,29 @@ export default function MyPage() {
               {/* 빠른 접근 메뉴 */}
               <div className="grid grid-cols-2 gap-4">
                 <button
-                  onClick={() => setActiveSection("archive")}
+                  onClick={async () => {
+                    setActiveSection("archive");
+                    // 아카이브 데이터 로드
+                    try {
+                      const { myApi } = await import("@/lib/api");
+                      const archivesData = await myApi.getArchives();
+                      if (archivesData.archives) {
+                        setArchives(
+                          archivesData.archives.map((a: Record<string, unknown>) => ({
+                            user_id: String(
+                              a.userId || a.user_id || a.userName || a.user_name || ""
+                            ),
+                            archive_id: Number(a.archiveId || a.archive_id || 0),
+                            analysis_text: String(a.analysisText || a.analysis_text || ""),
+                            raw_response: String(a.rawResponse || a.raw_response || ""),
+                            created_at: String(a.createdAt || a.created_at || ""),
+                          }))
+                        );
+                      }
+                    } catch (error) {
+                      console.error("아카이브 조회 실패:", error);
+                    }
+                  }}
                   className="bg-[#1a1a18] border border-[#2B2C28] rounded-lg p-6 hover:border-[#339989] transition text-left group"
                 >
                   <Archive className="w-8 h-8 text-[#339989] mb-3 group-hover:text-[#7DE2D1] transition" />
@@ -1429,28 +1454,61 @@ export default function MyPage() {
                 <h2 className="text-xl font-bold text-white mb-4">
                   공부내용 아카이브
                 </h2>
-                <div className="space-y-3">
-                  {archives.map((archive) => (
-                    <div
-                      key={archive.archive_id}
-                      className="bg-[#131515] border border-[#2B2C28] rounded-lg p-4 hover:border-[#339989] transition"
-                    >
-                      <div className="flex items-start justify-between mb-2">
-                        <h3 className="text-white font-medium">
-                          {archive.analysis_text}
-                        </h3>
-                        <span className="text-xs text-slate-500">
-                          {new Date(archive.created_at).toLocaleDateString(
-                            "ko-KR"
-                          )}
-                        </span>
-                      </div>
-                      <p className="text-sm text-slate-400 mb-3">
-                        {archive.raw_response}
-                      </p>
-                    </div>
-                  ))}
-                </div>
+                {archives.length === 0 ? (
+                  <div className="text-center py-12">
+                    <Archive className="w-16 h-16 text-slate-500 mx-auto mb-4" />
+                    <p className="text-slate-400 mb-2">
+                      저장된 코드 분석 결과가 없습니다.
+                    </p>
+                    <p className="text-sm text-slate-500">
+                      코드 분석 페이지에서 프로젝트를 분석하면 여기에 저장됩니다.
+                    </p>
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {archives.map((archive) => {
+                      // raw_response가 JSON 문자열인 경우 파싱 시도
+                      let rawResponseText = archive.raw_response || "";
+                      try {
+                        const parsed = JSON.parse(rawResponseText);
+                        if (parsed && typeof parsed === "object") {
+                          rawResponseText = JSON.stringify(parsed, null, 2);
+                        }
+                      } catch {
+                        // JSON 파싱 실패 시 원본 텍스트 사용
+                      }
+
+                      return (
+                        <div
+                          key={archive.archive_id}
+                          className="bg-[#131515] border border-[#2B2C28] rounded-lg p-4 hover:border-[#339989] transition"
+                        >
+                          <div className="flex items-start justify-between mb-2">
+                            <h3 className="text-white font-medium">
+                              {archive.analysis_text || "코드 분석 결과"}
+                            </h3>
+                            <span className="text-xs text-slate-500">
+                              {new Date(archive.created_at).toLocaleDateString(
+                                "ko-KR"
+                              )}
+                            </span>
+                          </div>
+                          <div className="mt-3">
+                            <details className="group">
+                              <summary className="cursor-pointer text-sm text-[#7DE2D1] hover:text-[#339989] transition">
+                                분석 결과 보기
+                              </summary>
+                              <pre className="mt-2 p-3 bg-[#0a0a0a] rounded text-xs text-slate-300 overflow-x-auto max-h-96 overflow-y-auto">
+                                {rawResponseText.substring(0, 2000)}
+                                {rawResponseText.length > 2000 && "..."}
+                              </pre>
+                            </details>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
             )}
 

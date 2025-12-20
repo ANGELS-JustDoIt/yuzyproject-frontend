@@ -429,6 +429,13 @@ export const myApi = {
     });
   },
 
+  // 공부 아카이브 조회
+  getArchives: async () => {
+    return apiCall<{ archives: any[] }>("/my/archives", {
+      method: "GET",
+    });
+  },
+
   // 코드 분석 결과 저장
   createArchive: async (data: {
     analysisText?: string;
