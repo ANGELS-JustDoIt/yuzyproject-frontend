@@ -1,6 +1,7 @@
 "use client";
 import { useState, useEffect } from "react";
 import type React from "react";
+import { useRouter } from "next/navigation";
 
 import {
   Bell,
@@ -32,6 +33,7 @@ interface Member {
   email: string;
   hope_job: string;
   created_at: string;
+  profile_image_url?: string;
 }
 
 interface Grass {
@@ -193,9 +195,10 @@ const mockNotifications: Noti[] = [
 ];
 
 export default function MyPage() {
+  const router = useRouter();
   const [member, setMember] = useState<Member | null>(null);
   const [grassData, setGrassData] = useState<Grass[]>([]);
-  const [archives] = useState<StudyArchive[]>(mockArchives);
+  const [archives, setArchives] = useState<StudyArchive[]>([]);
   const [scraps, setScraps] = useState<Scrap[]>([]);
   const [notifications, setNotifications] = useState<Noti[]>([]);
   const [stats, setStats] = useState<{
@@ -247,12 +250,14 @@ export default function MyPage() {
           scrapsData,
           notificationsData,
           schedulesData,
+          archivesData,
         ] = await Promise.all([
           myApi.getProfile(),
           myApi.getGrass(),
           myApi.getScraps(),
           myApi.getNotifications(),
           myApi.getSchedules(startDate, endDate),
+          myApi.getArchives(),
         ]);
 
         // 프로필 및 통계 처리
@@ -264,11 +269,37 @@ export default function MyPage() {
             email: profileData.profile.email || "",
             hope_job: profileData.profile.hopeJob || "",
             created_at: profileData.profile.createdAt || "",
+            profile_image_url:
+              profileData.profile.profileImageUrl ||
+              profileData.profile.profile_image_url ||
+              undefined,
           });
           setCurrentUserId(profileData.profile.userIdx || null);
         }
         if (profileData.stats) {
           setStats(profileData.stats);
+        }
+
+        // 아카이브 처리
+        if (archivesData.archives) {
+          const processedArchives = archivesData.archives.map(
+            (a: Record<string, unknown>) => ({
+              user_id: String(
+                a.userId || a.user_id || a.userName || a.user_name || ""
+              ),
+              archive_id: Number(a.archiveId || a.archive_id || 0),
+              analysis_text: String(a.analysisText || a.analysis_text || ""),
+              raw_response: String(a.rawResponse || a.raw_response || ""),
+              created_at: String(a.createdAt || a.created_at || ""),
+            })
+          );
+          // 시간 순서로 정렬 (최신 것부터 오래된 순서)
+          processedArchives.sort((a, b) => {
+            const dateA = new Date(a.created_at).getTime();
+            const dateB = new Date(b.created_at).getTime();
+            return dateB - dateA;
+          });
+          setArchives(processedArchives);
         }
 
         // 잔디 데이터 처리
@@ -988,6 +1019,50 @@ export default function MyPage() {
     }
   };
 
+  // 아카이브 항목 클릭 시 visualize 페이지로 이동
+  const handleArchiveClick = (archive: StudyArchive) => {
+    try {
+      // raw_response를 파싱하여 localStorage에 저장
+      let parsedData;
+      const rawResponseStr = archive.raw_response || "";
+
+      if (!rawResponseStr) {
+        throw new Error("분석 결과 데이터가 없습니다.");
+      }
+
+      try {
+        parsedData = JSON.parse(rawResponseStr);
+      } catch (parseError) {
+        throw new Error("분석 결과 데이터를 파싱할 수 없습니다.");
+      }
+
+      // 데이터 구조 검증 (api 필드가 있는지 확인)
+      if (!parsedData || typeof parsedData !== "object") {
+        throw new Error("데이터 형식이 올바르지 않습니다.");
+      }
+
+      // visualize 페이지에서 필요한 api 필드 검증
+      if (!parsedData.api || !Array.isArray(parsedData.api)) {
+        throw new Error(
+          "분석 결과에 API 데이터가 없습니다. 코드 분석 결과 형식이 올바르지 않을 수 있습니다."
+        );
+      }
+
+      // localStorage에 저장 (visualize 페이지에서 읽을 수 있도록)
+      localStorage.setItem("analysisResult", JSON.stringify(parsedData));
+
+      // visualize 페이지로 이동
+      router.push("/visualize");
+    } catch (error) {
+      console.error("아카이브 데이터 처리 오류:", error);
+      const errorMessage =
+        error instanceof Error
+          ? error.message
+          : "아카이브 데이터를 불러오는데 실패했습니다.";
+      alert(errorMessage);
+    }
+  };
+
   // 스크랩 게시글 수정 저장
   const saveScrapPost = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -1052,55 +1127,55 @@ export default function MyPage() {
         ) : (
           <>
             {/* 프로필 헤더 */}
-            <div className="mb-8 flex items-start justify-between">
-              <div className="flex items-start gap-6">
-                <div className="w-24 h-24 rounded-full bg-gradient-to-br from-[#339989] to-[#7DE2D1] flex items-center justify-center border-4 border-[#2B2C28]">
+            <div className="mb-8 flex items-start gap-6">
+              <div className="relative w-24 h-24 rounded-full bg-gradient-to-br from-[#339989] to-[#7DE2D1] flex items-center justify-center border-4 border-[#2B2C28] overflow-hidden">
+                {member?.profile_image_url ? (
+                  <img
+                    src={
+                      member.profile_image_url.startsWith("http")
+                        ? member.profile_image_url
+                        : `${API_BASE_URL}${member.profile_image_url}`
+                    }
+                    alt="프로필 사진"
+                    className="w-full h-full object-cover"
+                    onError={(e) => {
+                      // 이미지 로드 실패 시 기본 표시로 fallback
+                      const target = e.target as HTMLImageElement;
+                      target.style.display = "none";
+                      const parent = target.parentElement;
+                      if (parent && !parent.querySelector("span")) {
+                        const span = document.createElement("span");
+                        span.className = "text-3xl font-bold text-white";
+                        span.textContent = (member?.user_id || "U")
+                          .charAt(0)
+                          .toUpperCase();
+                        parent.appendChild(span);
+                      }
+                    }}
+                  />
+                ) : null}
+                {!member?.profile_image_url && (
                   <span className="text-3xl font-bold text-white">
                     {(member?.user_id || "U").charAt(0).toUpperCase()}
                   </span>
-                </div>
-                <div>
-                  <div className="flex items-center gap-3 mb-2">
-                    <h1 className="text-2xl font-bold text-white">
-                      {member?.user_id || "로딩 중..."}님
-                    </h1>
-                  </div>
-                  <p className="text-slate-400 text-sm mb-4">
-                    {member?.hope_job || ""}
-                  </p>
-                  <button
-                    onClick={() => setActiveSection("profile")}
-                    className="text-sm text-[#339989] hover:text-[#7DE2D1] transition flex items-center gap-1"
-                  >
-                    <User className="w-4 h-4" />
-                    수정
-                  </button>
-                </div>
+                )}
               </div>
-
-              <div className="flex items-center gap-8">
-                <div className="text-center">
-                  <div className="text-2xl font-bold text-[#7DE2D1]">
-                    {stats?.viewsCount ?? 0}
-                  </div>
-                  <div className="text-xs text-slate-400 mt-1">조회</div>
+              <div>
+                <div className="flex items-center gap-3 mb-2">
+                  <h1 className="text-2xl font-bold text-white">
+                    {member?.user_id || "로딩 중..."}님
+                  </h1>
                 </div>
-                <div className="text-center">
-                  <div className="text-2xl font-bold text-[#7DE2D1]">
-                    {stats?.scrapsCount ?? scraps.length}
-                  </div>
-                  <div className="text-xs text-slate-400 mt-1">스크랩</div>
-                </div>
-                <div className="text-center">
-                  <div className="text-2xl font-bold text-[#7DE2D1]">
-                    {stats?.archivesCount ?? archives.length}
-                  </div>
-                  <div className="text-xs text-slate-400 mt-1">컬렉션</div>
-                </div>
-                <div className="text-center">
-                  <div className="text-2xl font-bold text-[#7DE2D1]">0</div>
-                  <div className="text-xs text-slate-400 mt-1">형광펜</div>
-                </div>
+                <p className="text-slate-400 text-sm mb-4">
+                  {member?.hope_job || ""}
+                </p>
+                <button
+                  onClick={() => setActiveSection("profile")}
+                  className="text-sm text-[#339989] hover:text-[#7DE2D1] transition flex items-center gap-1"
+                >
+                  <User className="w-4 h-4" />
+                  수정
+                </button>
               </div>
             </div>
 
@@ -1192,7 +1267,7 @@ export default function MyPage() {
                 >
                   <Archive className="w-8 h-8 text-[#339989] mb-3 group-hover:text-[#7DE2D1] transition" />
                   <h3 className="text-white font-medium mb-1">
-                    공부내용 아카이브
+                    공부 내용 저장소
                   </h3>
                   <p className="text-xs text-slate-400">
                     {archives.length}개의 학습 기록
@@ -1423,34 +1498,71 @@ export default function MyPage() {
               </div>
             )}
 
-            {/* 공부내용 아카이브 */}
+            {/* 공부 내용 저장소 */}
             {activeSection === "archive" && (
               <div className="bg-[#1a1a18] border border-[#2B2C28] rounded-lg p-6 mb-8">
                 <h2 className="text-xl font-bold text-white mb-4">
-                  공부내용 아카이브
+                  공부 내용 저장소
                 </h2>
-                <div className="space-y-3">
-                  {archives.map((archive) => (
-                    <div
-                      key={archive.archive_id}
-                      className="bg-[#131515] border border-[#2B2C28] rounded-lg p-4 hover:border-[#339989] transition"
-                    >
-                      <div className="flex items-start justify-between mb-2">
-                        <h3 className="text-white font-medium">
-                          {archive.analysis_text}
-                        </h3>
-                        <span className="text-xs text-slate-500">
-                          {new Date(archive.created_at).toLocaleDateString(
-                            "ko-KR"
-                          )}
-                        </span>
-                      </div>
-                      <p className="text-sm text-slate-400 mb-3">
-                        {archive.raw_response}
-                      </p>
-                    </div>
-                  ))}
-                </div>
+                {archives.length === 0 ? (
+                  <div className="text-center py-12">
+                    <Archive className="w-16 h-16 text-slate-500 mx-auto mb-4" />
+                    <p className="text-slate-400 mb-2">
+                      저장된 코드 분석 결과가 없습니다.
+                    </p>
+                    <p className="text-sm text-slate-500">
+                      코드 분석 페이지에서 프로젝트를 분석하면 여기에
+                      저장됩니다.
+                    </p>
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {archives.map((archive, index) => {
+                      // 날짜와 시간 포맷팅
+                      const archiveDate = new Date(archive.created_at);
+                      const year = archiveDate.getFullYear();
+                      const month = String(archiveDate.getMonth() + 1).padStart(
+                        2,
+                        "0"
+                      );
+                      const day = String(archiveDate.getDate()).padStart(
+                        2,
+                        "0"
+                      );
+                      const formattedDate = `${year}-${month}-${day}`;
+                      const formattedTime = archiveDate.toLocaleTimeString(
+                        "ko-KR",
+                        {
+                          hour: "2-digit",
+                          minute: "2-digit",
+                          hour12: false,
+                        }
+                      );
+
+                      return (
+                        <div
+                          key={archive.archive_id}
+                          onClick={() => handleArchiveClick(archive)}
+                          className="bg-[#131515] border border-[#2B2C28] rounded-lg p-4 hover:border-[#339989] transition cursor-pointer"
+                        >
+                          <div className="flex items-center gap-3">
+                            <div className="text-base text-slate-400 font-medium min-w-[2rem]">
+                              {index + 1}.
+                            </div>
+                            <div className="flex flex-col gap-1 flex-1">
+                              <div className="text-lg text-white">
+                                {formattedDate}
+                              </div>
+                              <div className="text-base text-[#7DE2D1]">
+                                {formattedTime}
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
             )}
 
@@ -1563,37 +1675,81 @@ export default function MyPage() {
                       try {
                         const { myApi } = await import("@/lib/api");
                         const updateData: {
-                          email?: string;
+                          user_name?: string;
                           hope_job?: string;
                           password?: string;
                         } = {};
-                        const email = formData.get("email") as string;
+                        const user_name = formData.get("user_name") as string;
                         const hope_job = formData.get("hope_job") as string;
                         const password = formData.get("password") as string;
+                        const profileImage = formData.get(
+                          "profileImage"
+                        ) as File | null;
 
-                        if (email && email !== member?.email)
-                          updateData.email = email;
+                        if (user_name && user_name !== member?.user_id)
+                          updateData.user_name = user_name;
                         if (hope_job && hope_job !== member?.hope_job)
                           updateData.hope_job = hope_job;
                         if (password && password.trim())
                           updateData.password = password;
 
-                        if (Object.keys(updateData).length > 0) {
-                          const result = await myApi.updateProfile(updateData);
+                        // 프로필 이미지가 있으면 FormData로 전송
+                        const formDataToSend = new FormData();
+                        if (updateData.user_name)
+                          formDataToSend.append(
+                            "user_name",
+                            updateData.user_name
+                          );
+                        if (updateData.hope_job)
+                          formDataToSend.append(
+                            "hope_job",
+                            updateData.hope_job
+                          );
+                        if (updateData.password)
+                          formDataToSend.append(
+                            "password",
+                            updateData.password
+                          );
+                        if (profileImage && profileImage.size > 0) {
+                          formDataToSend.append("profileImage", profileImage);
+                        }
+
+                        // FormData에 데이터가 있으면 FormData로 전송, 아니면 JSON으로 전송
+                        const hasData =
+                          Object.keys(updateData).length > 0 ||
+                          (profileImage && profileImage.size > 0);
+                        if (hasData) {
+                          const result =
+                            profileImage && profileImage.size > 0
+                              ? await myApi.updateProfile(
+                                  updateData,
+                                  formDataToSend
+                                )
+                              : await myApi.updateProfile(updateData);
                           if (result.profile) {
                             setMember({
                               user_id:
                                 result.profile.userId ||
                                 result.profile.userName ||
+                                result.profile.user_name ||
                                 member?.user_id ||
                                 "",
                               password: "",
-                              email: result.profile.email || "",
-                              hope_job: result.profile.hopeJob || "",
+                              email:
+                                result.profile.email || member?.email || "",
+                              hope_job:
+                                result.profile.hopeJob ||
+                                result.profile.hope_job ||
+                                "",
                               created_at:
                                 result.profile.createdAt ||
+                                result.profile.created_at ||
                                 member?.created_at ||
                                 "",
+                              profile_image_url:
+                                result.profile.profileImageUrl ||
+                                result.profile.profile_image_url ||
+                                member?.profile_image_url,
                             });
                             alert("프로필이 성공적으로 업데이트되었습니다.");
                             setActiveSection(null);
@@ -1612,13 +1768,13 @@ export default function MyPage() {
                   >
                     <div>
                       <label className="block text-sm font-medium text-slate-400 mb-2">
-                        사용자 ID
+                        닉네임
                       </label>
                       <input
                         type="text"
+                        name="user_name"
                         defaultValue={member?.user_id || ""}
-                        disabled
-                        className="w-full bg-[#131515] border border-[#2B2C28] rounded-lg px-4 py-2 text-slate-500 cursor-not-allowed"
+                        className="w-full bg-[#131515] border border-[#2B2C28] rounded-lg px-4 py-2 text-white focus:outline-none focus:border-[#339989] transition"
                       />
                     </div>
 
@@ -1628,9 +1784,21 @@ export default function MyPage() {
                       </label>
                       <input
                         type="email"
-                        name="email"
                         defaultValue={member?.email || ""}
-                        className="w-full bg-[#131515] border border-[#2B2C28] rounded-lg px-4 py-2 text-white focus:outline-none focus:border-[#339989] transition"
+                        disabled
+                        className="w-full bg-[#131515] border border-[#2B2C28] rounded-lg px-4 py-2 text-slate-500 cursor-not-allowed"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-slate-400 mb-2">
+                        프로필 사진
+                      </label>
+                      <input
+                        type="file"
+                        name="profileImage"
+                        accept="image/*"
+                        className="w-full bg-[#131515] border border-[#2B2C28] rounded-lg px-4 py-2 text-white focus:outline-none focus:border-[#339989] transition file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-[#339989] file:text-white hover:file:bg-[#7DE2D1] cursor-pointer"
                       />
                     </div>
 

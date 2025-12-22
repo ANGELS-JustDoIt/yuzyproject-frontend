@@ -32,6 +32,8 @@ interface Post {
   userIdx?: number; // 실제 user_idx
   userName?: string; // 사용자 이름
   name?: string; // 사용자 이름 (DB 필드명)
+  profileImageUrl?: string; // 프로필 이미지 URL
+  profile_image_url?: string; // 프로필 이미지 URL (스네이크 케이스)
   createdAt: string;
   updatedAt: string;
   mainImageId?: number;
@@ -102,6 +104,7 @@ export default function PostsPage() {
   }>({});
   const [submitting, setSubmitting] = useState(false);
   const [currentUserId, setCurrentUserId] = useState<number | null>(null);
+  const [imageErrors, setImageErrors] = useState<Set<number>>(new Set());
 
   const postsPerPage = activeTab === "community" ? 9 : 15;
 
@@ -572,8 +575,31 @@ export default function PostsPage() {
                   {/* Post Header */}
                   <div className="flex items-center justify-between p-4">
                     <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-full bg-gradient-to-br from-[#339989] to-[#7DE2D1] flex items-center justify-center">
-                        <User className="w-5 h-5 text-white" />
+                      <div className="w-10 h-10 rounded-full bg-gradient-to-br from-[#339989] to-[#7DE2D1] flex items-center justify-center overflow-hidden">
+                        {(post.profileImageUrl || post.profile_image_url) &&
+                        !imageErrors.has(post.boardId) ? (
+                          <img
+                            src={
+                              (
+                                post.profileImageUrl || post.profile_image_url
+                              )?.startsWith("http")
+                                ? post.profileImageUrl || post.profile_image_url
+                                : `${API_BASE_URL}${
+                                    post.profileImageUrl ||
+                                    post.profile_image_url
+                                  }`
+                            }
+                            alt="프로필 사진"
+                            className="w-full h-full object-cover"
+                            onError={() => {
+                              setImageErrors((prev) =>
+                                new Set(prev).add(post.boardId)
+                              );
+                            }}
+                          />
+                        ) : (
+                          <User className="w-5 h-5 text-white" />
+                        )}
                       </div>
                       <div>
                         <p className="text-sm font-medium text-white">
@@ -949,6 +975,35 @@ export default function PostsPage() {
                     {selectedPost.title}
                   </h1>
                   <div className="flex items-center gap-4 text-sm text-slate-400">
+                    <div className="w-8 h-8 rounded-full bg-gradient-to-br from-[#339989] to-[#7DE2D1] flex items-center justify-center overflow-hidden flex-shrink-0">
+                      {(selectedPost.profileImageUrl ||
+                        selectedPost.profile_image_url) &&
+                      !imageErrors.has(selectedPost.boardId) ? (
+                        <img
+                          src={
+                            (
+                              selectedPost.profileImageUrl ||
+                              selectedPost.profile_image_url
+                            )?.startsWith("http")
+                              ? selectedPost.profileImageUrl ||
+                                selectedPost.profile_image_url
+                              : `${API_BASE_URL}${
+                                  selectedPost.profileImageUrl ||
+                                  selectedPost.profile_image_url
+                                }`
+                          }
+                          alt="프로필 사진"
+                          className="w-full h-full object-cover"
+                          onError={() => {
+                            setImageErrors((prev) =>
+                              new Set(prev).add(selectedPost.boardId)
+                            );
+                          }}
+                        />
+                      ) : (
+                        <User className="w-4 h-4 text-white" />
+                      )}
+                    </div>
                     <span className="font-medium text-white">
                       {selectedPost.name ||
                         selectedPost.userName ||
@@ -1074,7 +1129,9 @@ export default function PostsPage() {
                   <div className="space-y-4">
                     {selectedPostComments.map((comment) => (
                       <div key={comment.replyId} className="flex gap-3">
-                        <div className="w-8 h-8 rounded-full bg-[#2B2C28]" />
+                        <div className="w-8 h-8 rounded-full bg-gradient-to-br from-[#339989] to-[#7DE2D1] flex items-center justify-center overflow-hidden flex-shrink-0">
+                          <User className="w-4 h-4 text-white" />
+                        </div>
                         <div className="flex-1">
                           <div className="flex items-center gap-2 text-sm text-slate-400 mb-1">
                             <span className="text-white font-medium">
