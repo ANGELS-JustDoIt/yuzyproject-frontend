@@ -40,6 +40,7 @@ interface Post {
   views: number;
   isSolved: boolean;
   likeCount: number;
+  commentCount?: number; // 댓글 수
 }
 
 interface Comment {
@@ -105,6 +106,11 @@ export default function PostsPage() {
   const [submitting, setSubmitting] = useState(false);
   const [currentUserId, setCurrentUserId] = useState<number | null>(null);
   const [imageErrors, setImageErrors] = useState<Set<number>>(new Set());
+  const [loadingComments, setLoadingComments] = useState(false);
+  const [commentsError, setCommentsError] = useState<string | null>(null);
+  const [commentCounts, setCommentCounts] = useState<Map<number, number>>(
+    new Map()
+  ); // 게시글 ID -> 댓글 수
 
   const postsPerPage = activeTab === "community" ? 9 : 15;
 
@@ -148,6 +154,27 @@ export default function PostsPage() {
       });
       setPosts(response.posts);
       setPagination(response.pagination);
+
+      // 각 게시글의 댓글 수 조회
+      const commentCountPromises = response.posts.map(async (post: Post) => {
+        try {
+          const commentsResponse = await postApi.getComments(post.boardId);
+          return {
+            postId: post.boardId,
+            count: commentsResponse.commentCount || commentsResponse.comments?.length || 0,
+          };
+        } catch (err) {
+          console.error(`게시글 ${post.boardId} 댓글 수 조회 실패:`, err);
+          return { postId: post.boardId, count: 0 };
+        }
+      });
+
+      const commentCountResults = await Promise.all(commentCountPromises);
+      const newCommentCounts = new Map<number, number>();
+      commentCountResults.forEach((result) => {
+        newCommentCounts.set(result.postId, result.count);
+      });
+      setCommentCounts(newCommentCounts);
 
       // 각 게시글의 메인 이미지 파일 정보 조회
       const postsWithMainImages = response.posts.filter(
@@ -300,18 +327,32 @@ export default function PostsPage() {
     setSelectedPost(null);
     setSelectedPostFiles([]);
     setSelectedPostComments([]);
+    setLoadingComments(false);
+    setCommentsError(null);
     setShowWriteModal(true); // 수정 모달 열기
   };
 
   const viewPost = async (post: Post) => {
     setSelectedPost(post);
     setShowDetailModal(true);
+    setSelectedPostComments([]); // 초기화
+    setCommentsError(null);
+    setLoadingComments(true);
     // 댓글만 먼저 빠르게 로드
     try {
       const commentsResponse = await postApi.getComments(post.boardId);
-      setSelectedPostComments(commentsResponse.comments || []);
-    } catch (err) {
+      console.log("댓글 응답:", commentsResponse); // 디버깅용
+      const comments = commentsResponse.comments || [];
+      setSelectedPostComments(comments);
+      if (comments.length === 0) {
+        setCommentsError(null); // 댓글이 없는 것은 에러가 아님
+      }
+    } catch (err: any) {
       console.error("댓글 조회 에러:", err);
+      setCommentsError(err.message || "댓글을 불러오는데 실패했습니다.");
+      setSelectedPostComments([]);
+    } finally {
+      setLoadingComments(false);
     }
     // 나머지는 백그라운드에서 로드
     fetchPostDetail(post.boardId);
@@ -386,9 +427,13 @@ export default function PostsPage() {
       setSubmitting(true);
       await postApi.createComment(postId, text);
       setCommentText({ ...commentText, [postId]: "" });
+      setCommentsError(null);
       // 댓글 목록 새로고침
       const commentsResponse = await postApi.getComments(postId);
       setSelectedPostComments(commentsResponse.comments || []);
+      // 댓글 수 업데이트
+      const newCount = commentsResponse.commentCount || commentsResponse.comments?.length || 0;
+      setCommentCounts((prev) => new Map(prev).set(postId, newCount));
     } catch (err: any) {
       alert(err.message || "댓글 작성에 실패했습니다.");
     } finally {
@@ -403,6 +448,9 @@ export default function PostsPage() {
       // 댓글 목록 새로고침
       const commentsResponse = await postApi.getComments(postId);
       setSelectedPostComments(commentsResponse.comments || []);
+      // 댓글 수 업데이트
+      const newCount = commentsResponse.commentCount || commentsResponse.comments?.length || 0;
+      setCommentCounts((prev) => new Map(prev).set(postId, newCount));
       // 게시글 상세 정보 새로고침
       await fetchPostDetail(postId);
     } catch (err: any) {
@@ -435,6 +483,9 @@ export default function PostsPage() {
       // 댓글 목록 새로고침
       const commentsResponse = await postApi.getComments(postId);
       setSelectedPostComments(commentsResponse.comments || []);
+      // 댓글 수 업데이트 (수정은 개수 변화 없음, 하지만 일관성을 위해)
+      const newCount = commentsResponse.commentCount || commentsResponse.comments?.length || 0;
+      setCommentCounts((prev) => new Map(prev).set(postId, newCount));
     } catch (err: any) {
       alert(err.message || "댓글 수정에 실패했습니다.");
     } finally {
@@ -451,6 +502,9 @@ export default function PostsPage() {
       // 댓글 목록 새로고침
       const commentsResponse = await postApi.getComments(postId);
       setSelectedPostComments(commentsResponse.comments || []);
+      // 댓글 수 업데이트
+      const newCount = commentsResponse.commentCount || commentsResponse.comments?.length || 0;
+      setCommentCounts((prev) => new Map(prev).set(postId, newCount));
     } catch (err: any) {
       alert(err.message || "댓글 삭제에 실패했습니다.");
     } finally {
@@ -728,7 +782,7 @@ export default function PostsPage() {
                             post.isSolved ? "text-[#339989]" : "text-slate-400"
                           }`}
                         >
-                          -
+                          {commentCounts.get(post.boardId) ?? 0}
                         </div>
                         <div className="text-xs text-slate-500">답변</div>
                       </div>
@@ -960,6 +1014,8 @@ export default function PostsPage() {
                     setSelectedPost(null);
                     setSelectedPostFiles([]);
                     setSelectedPostComments([]);
+                    setLoadingComments(false);
+                    setCommentsError(null);
                   }}
                   className="p-2 hover:bg-[#2B2C28] rounded transition"
                 >
@@ -1096,10 +1152,52 @@ export default function PostsPage() {
                 </div>
 
                 <div className="border-t border-[#2B2C28] pt-6">
-                  <h3 className="text-white font-medium mb-4">
-                    {selectedPost.type === "question" ? "답변" : "댓글"}{" "}
-                    {selectedPostComments.length}개
-                  </h3>
+                  <div className="flex items-center justify-between mb-4">
+                    <h3 className="text-white font-medium">
+                      {selectedPost.type === "question" ? "답변" : "댓글"}{" "}
+                      {loadingComments ? (
+                        <span className="text-slate-400 text-sm">(로딩 중...)</span>
+                      ) : (
+                        <span>{selectedPostComments.length}개</span>
+                      )}
+                    </h3>
+                    {!loadingComments && (
+                      <button
+                        onClick={() => {
+                          if (selectedPost) {
+                            setLoadingComments(true);
+                            setCommentsError(null);
+                            postApi
+                              .getComments(selectedPost.boardId)
+                              .then((response) => {
+                                console.log("댓글 새로고침 응답:", response);
+                                setSelectedPostComments(response.comments || []);
+                                // 댓글 수 업데이트
+                                const newCount = response.commentCount || response.comments?.length || 0;
+                                setCommentCounts((prev) => new Map(prev).set(selectedPost.boardId, newCount));
+                              })
+                              .catch((err: any) => {
+                                console.error("댓글 새로고침 에러:", err);
+                                setCommentsError(err.message || "댓글을 불러오는데 실패했습니다.");
+                              })
+                              .finally(() => {
+                                setLoadingComments(false);
+                              });
+                          }
+                        }}
+                        className="text-sm text-slate-400 hover:text-[#7DE2D1] transition"
+                      >
+                        새로고침
+                      </button>
+                    )}
+                  </div>
+
+                  {/* 에러 메시지 */}
+                  {commentsError && (
+                    <div className="mb-4 p-3 bg-red-900/20 border border-red-500/30 rounded-lg">
+                      <p className="text-red-400 text-sm">{commentsError}</p>
+                    </div>
+                  )}
 
                   {/* 댓글 작성 폼 */}
                   <div className="mb-6">
@@ -1127,7 +1225,12 @@ export default function PostsPage() {
                   </div>
 
                   <div className="space-y-4">
-                    {selectedPostComments.map((comment) => (
+                    {loadingComments ? (
+                      <p className="text-slate-400 text-sm text-center py-4">
+                        댓글을 불러오는 중...
+                      </p>
+                    ) : selectedPostComments.length > 0 ? (
+                      selectedPostComments.map((comment) => (
                       <div key={comment.replyId} className="flex gap-3">
                         <div className="w-8 h-8 rounded-full bg-gradient-to-br from-[#339989] to-[#7DE2D1] flex items-center justify-center overflow-hidden flex-shrink-0">
                           <User className="w-4 h-4 text-white" />
@@ -1243,8 +1346,8 @@ export default function PostsPage() {
                             )}
                         </div>
                       </div>
-                    ))}
-                    {selectedPostComments.length === 0 && (
+                      ))
+                    ) : (
                       <p className="text-slate-400 text-sm text-center py-4">
                         댓글이 없습니다.
                       </p>
