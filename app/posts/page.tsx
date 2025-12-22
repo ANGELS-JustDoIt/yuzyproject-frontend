@@ -1326,6 +1326,7 @@ export default function PostsPage() {
                           )}
                           {selectedPost.type === "question" &&
                             !comment.isSelected &&
+                            !selectedPostComments.some((c) => c.isSelected) && // 이미 채택된 댓글이 없을 때만
                             editingCommentId !== comment.replyId &&
                             currentUserId !== null &&
                             ((selectedPost.userIdx !== undefined &&
