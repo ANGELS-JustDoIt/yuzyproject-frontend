@@ -3,8 +3,6 @@
 import { useState, useEffect } from "react";
 import {
   Code2,
-  ChevronRight,
-  ChevronDown,
   FileCode,
   Lock,
   MessageSquare,
@@ -19,17 +17,20 @@ import Header from "@/components/Header";
 
 // JSON 구조에 맞는 타입 정의
 interface FunctionChild {
-  function: string;
   file: string;
+  code: string;
   description: string;
   children: FunctionChild[];
+  return?: string;
+  function?: string; // 선택적 (하위 호환성)
 }
 
 interface Endpoint {
   method: string;
   url: string;
-  function: string;
   children: FunctionChild[];
+  return?: string;
+  function?: string; // 선택적 (하위 호환성)
 }
 
 interface Category {
@@ -46,9 +47,6 @@ export default function VisualizePage() {
   const [analysisData, setAnalysisData] = useState<AnalysisData | null>(null);
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [selectedEndpoint, setSelectedEndpoint] = useState<string | null>(null);
-  const [selectedFunction, setSelectedFunction] =
-    useState<FunctionChild | null>(null);
-  const [expandedNodes, setExpandedNodes] = useState<Set<string>>(new Set());
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -149,17 +147,6 @@ export default function VisualizePage() {
           }
         }
 
-        // 방법 3: API 호출 (백엔드에서 받아오기)
-        // const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080";
-        // const response = await fetch(`${API_BASE_URL}/api/analysis`, {
-        //   headers: {
-        //     Authorization: `Bearer ${getToken()}`,
-        //   },
-        // });
-        // if (!response.ok) throw new Error("분석 결과를 불러올 수 없습니다");
-        // const data = await response.json();
-        // setAnalysisData(data);
-
         // 데이터가 없으면 에러 표시
         setError(
           "분석 결과를 찾을 수 없습니다. 코드 분석 페이지에서 폴더를 업로드해주세요."
@@ -210,94 +197,351 @@ export default function VisualizePage() {
     return FileCode;
   };
 
-  const toggleNode = (nodeId: string) => {
-    const newExpanded = new Set(expandedNodes);
-    if (newExpanded.has(nodeId)) {
-      newExpanded.delete(nodeId);
-    } else {
-      newExpanded.add(nodeId);
-    }
-    setExpandedNodes(newExpanded);
+  // VS Code 스타일 syntax highlighting 함수
+  const highlightCode = (code: string): JSX.Element[] => {
+    const lines = code.split("\n");
+    return lines.map((line, lineIndex) => {
+      // 빈 줄 처리
+      if (!line.trim()) {
+        return (
+          <div key={lineIndex} className="flex">
+            <span className="text-slate-600 mr-4 select-none w-8 text-right">
+              {lineIndex + 1}
+            </span>
+            <span className="flex-1">&nbsp;</span>
+          </div>
+        );
+      }
+
+      const text = line;
+      const parts: Array<{ text: string; color?: string }> = [];
+      let lastIndex = 0;
+
+      // 우선순위에 따라 패턴 매칭 (순서 중요!)
+      // 1. 주석 (가장 먼저 처리)
+      const commentRegex = /(\/\/.*|\/\*[\s\S]*?\*\/)/g;
+      let commentMatch;
+      const commentMatches: Array<{
+        start: number;
+        end: number;
+        text: string;
+      }> = [];
+      while ((commentMatch = commentRegex.exec(text)) !== null) {
+        commentMatches.push({
+          start: commentMatch.index,
+          end: commentMatch.index + commentMatch[0].length,
+          text: commentMatch[0],
+        });
+      }
+
+      // 2. 문자열 (주석 다음)
+      const stringRegex = /(['"`])(?:(?=(\\?))\2.)*?\1/g;
+      let stringMatch;
+      const stringMatches: Array<{ start: number; end: number; text: string }> =
+        [];
+      while ((stringMatch = stringRegex.exec(text)) !== null) {
+        stringMatches.push({
+          start: stringMatch.index,
+          end: stringMatch.index + stringMatch[0].length,
+          text: stringMatch[0],
+        });
+      }
+
+      // 3. 모든 매치 합치기 및 정렬
+      const allMatches: Array<{
+        start: number;
+        end: number;
+        text: string;
+        color: string;
+      }> = [
+        ...commentMatches.map((m) => ({ ...m, color: "#6A9955" })),
+        ...stringMatches.map((m) => ({ ...m, color: "#CE9178" })),
+      ].sort((a, b) => a.start - b.start);
+
+      // 겹치는 매치 제거 (주석이 우선)
+      const filteredMatches: Array<{
+        start: number;
+        end: number;
+        text: string;
+        color: string;
+      }> = [];
+      allMatches.forEach((match) => {
+        const overlaps = filteredMatches.some(
+          (existing) =>
+            (match.start >= existing.start && match.start < existing.end) ||
+            (match.end > existing.start && match.end <= existing.end) ||
+            (match.start <= existing.start && match.end >= existing.end)
+        );
+        if (!overlaps) {
+          filteredMatches.push(match);
+        }
+      });
+
+      // 문자열/주석이 아닌 부분에서 다른 패턴 찾기
+      const processSegment = (start: number, end: number) => {
+        const segment = text.substring(start, end);
+        if (!segment.trim()) return;
+
+        // 키워드
+        const keywordRegex =
+          /\b(export|import|async|await|function|const|let|var|if|else|return|for|while|do|switch|case|default|try|catch|finally|throw|new|this|class|extends|super|static|public|private|protected|interface|type|enum|namespace|module|declare|as|is|in|of|typeof|instanceof|void|null|undefined|true|false|break|continue)\b/g;
+        const keywordMatches: Array<{
+          start: number;
+          end: number;
+          text: string;
+        }> = [];
+        let keywordMatch;
+        while ((keywordMatch = keywordRegex.exec(segment)) !== null) {
+          keywordMatches.push({
+            start: start + keywordMatch.index,
+            end: start + keywordMatch.index + keywordMatch[0].length,
+            text: keywordMatch[0],
+          });
+        }
+
+        // 숫자
+        const numberRegex = /\b\d+\.?\d*\b/g;
+        const numberMatches: Array<{
+          start: number;
+          end: number;
+          text: string;
+        }> = [];
+        let numberMatch;
+        while ((numberMatch = numberRegex.exec(segment)) !== null) {
+          numberMatches.push({
+            start: start + numberMatch.index,
+            end: start + numberMatch.index + numberMatch[0].length,
+            text: numberMatch[0],
+          });
+        }
+
+        // 함수 호출
+        const functionRegex = /\b([a-zA-Z_$][a-zA-Z0-9_$]*)\s*\(/g;
+        const functionMatches: Array<{
+          start: number;
+          end: number;
+          text: string;
+        }> = [];
+        let functionMatch;
+        while ((functionMatch = functionRegex.exec(segment)) !== null) {
+          functionMatches.push({
+            start: start + functionMatch.index,
+            end: start + functionMatch.index + functionMatch[0].length,
+            text: functionMatch[0],
+          });
+        }
+
+        // 모든 매치 추가
+        filteredMatches.push(
+          ...keywordMatches.map((m) => ({ ...m, color: "#C586C0" })),
+          ...numberMatches.map((m) => ({ ...m, color: "#B5CEA8" })),
+          ...functionMatches.map((m) => ({ ...m, color: "#DCDCAA" }))
+        );
+      };
+
+      // 문자열/주석 사이의 세그먼트 처리
+      let segmentStart = 0;
+      filteredMatches.forEach((match) => {
+        if (match.start > segmentStart) {
+          processSegment(segmentStart, match.start);
+        }
+        segmentStart = Math.max(segmentStart, match.end);
+      });
+      if (segmentStart < text.length) {
+        processSegment(segmentStart, text.length);
+      }
+
+      // 최종 정렬 및 중복 제거
+      const finalMatches = filteredMatches
+        .filter((match, index, self) => {
+          return (
+            index ===
+            self.findIndex(
+              (m) => m.start === match.start && m.end === match.end
+            )
+          );
+        })
+        .sort((a, b) => a.start - b.start);
+
+      // 토큰 생성
+      finalMatches.forEach((match) => {
+        if (match.start > lastIndex) {
+          parts.push({ text: text.substring(lastIndex, match.start) });
+        }
+        parts.push({ text: match.text, color: match.color });
+        lastIndex = match.end;
+      });
+
+      if (lastIndex < text.length) {
+        parts.push({ text: text.substring(lastIndex) });
+      }
+
+      return (
+        <div
+          key={lineIndex}
+          className="flex hover:bg-[#131515]/50 transition-colors px-2 py-0.5 group/line"
+        >
+          <span className="text-slate-600 mr-4 select-none w-8 text-right group-hover/line:text-slate-500">
+            {lineIndex + 1}
+          </span>
+          <span className="flex-1 text-[#D4D4D4] font-normal">
+            {parts.length > 0 ? (
+              parts.map((part, partIndex) => (
+                <span
+                  key={partIndex}
+                  style={part.color ? { color: part.color } : {}}
+                >
+                  {part.text}
+                </span>
+              ))
+            ) : (
+              <span>{text}</span>
+            )}
+          </span>
+        </div>
+      );
+    });
   };
 
-  const handleFunctionClick = (func: FunctionChild) => {
-    setSelectedFunction(func);
-  };
-
-  const renderFunctionTree = (
+  // 토글 없이 모든 노드를 펼쳐서 렌더링 (개선된 시각화)
+  const renderCodeFlow = (
     children: FunctionChild[],
     level: number = 0,
     parentId: string = ""
   ) => {
     return children.map((child, index) => {
       const nodeId = `${parentId}-${index}`;
-      const isExpanded = expandedNodes.has(nodeId);
       const hasChildren = child.children && child.children.length > 0;
       const Icon = getFileIcon(child.file);
-      const isSelected =
-        selectedFunction?.function === child.function &&
-        selectedFunction?.file === child.file;
+      const codeLines = child.code ? child.code.split("\n") : [];
+      const firstLine = codeLines[0] || "";
+      const displayName =
+        child.function || firstLine.substring(0, 50) || "코드";
+
+      // 레벨별 색상 그라데이션
+      const levelColors = [
+        {
+          bg: "bg-gradient-to-br from-[#339989]/20 to-[#7DE2D1]/10",
+          border: "border-[#339989]",
+          shadow: "shadow-lg shadow-[#339989]/30",
+        },
+        {
+          bg: "bg-gradient-to-br from-[#7DE2D1]/15 to-[#2B2C28]",
+          border: "border-[#7DE2D1]/50",
+          shadow: "shadow-md shadow-[#7DE2D1]/20",
+        },
+        {
+          bg: "bg-gradient-to-br from-[#2B2C28] to-[#131515]",
+          border: "border-[#2B2C28]",
+          shadow: "shadow-sm",
+        },
+      ];
+      const colors = levelColors[Math.min(level, levelColors.length - 1)];
 
       return (
-        <div key={nodeId} className="ml-2 md:ml-4">
-          <div
-            onClick={() => handleFunctionClick(child)}
-            className={`flex items-start gap-2 p-3 rounded-lg mb-2 transition-all cursor-pointer group ${
-              level === 0
-                ? "bg-[#1a1a18] border border-[#2B2C28]"
-                : "bg-[#131515] border border-[#2B2C28]/50"
-            } ${
-              isSelected
-                ? "border-[#7DE2D1] bg-[#339989]/10 shadow-lg shadow-[#339989]/20"
-                : "hover:border-[#339989] hover:bg-[#1a1a18]/80"
-            }`}
-          >
-            {hasChildren ? (
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  toggleNode(nodeId);
-                }}
-                className="mt-1 text-slate-400 hover:text-white transition flex-shrink-0"
-              >
-                {isExpanded ? (
-                  <ChevronDown className="w-4 h-4" />
-                ) : (
-                  <ChevronRight className="w-4 h-4" />
-                )}
-              </button>
-            ) : (
-              <div className="w-4 h-4 flex-shrink-0" />
-            )}
-
-            <Icon className="w-4 h-4 text-[#7DE2D1] mt-1 flex-shrink-0 group-hover:scale-110 transition-transform" />
-
-            <div className="flex-1 min-w-0">
-              <div className="flex items-center gap-2 mb-1">
-                <span
-                  className={`text-white font-mono text-sm font-medium truncate ${
-                    isSelected ? "text-[#7DE2D1]" : "group-hover:text-[#7DE2D1]"
-                  } transition-colors`}
-                >
-                  {child.function}
-                </span>
-              </div>
-              <div className="text-xs text-slate-400 mb-1 truncate">
-                {child.file}
-              </div>
-              <div className="text-xs text-slate-500 line-clamp-2">
-                {child.description}
-              </div>
-            </div>
-
-            {isSelected && (
-              <div className="w-2 h-2 rounded-full bg-[#7DE2D1] flex-shrink-0 mt-2 animate-pulse" />
-            )}
+        <div key={nodeId} className="mb-6 relative">
+          {/* 단계 번호 배지 */}
+          <div className="absolute -left-8 top-4 w-6 h-6 rounded-full bg-gradient-to-br from-[#339989] to-[#7DE2D1] flex items-center justify-center text-white text-xs font-bold shadow-lg z-10">
+            {index + 1}
           </div>
 
-          {hasChildren && isExpanded && (
-            <div className="ml-4 md:ml-6 border-l-2 border-[#2B2C28] pl-2 md:pl-4">
-              {renderFunctionTree(child.children, level + 1, nodeId)}
+          {/* 코드 카드 */}
+          <div
+            className={`rounded-xl border-2 transition-all duration-300 hover:scale-[1.01] ${colors.bg} ${colors.border} ${colors.shadow}`}
+          >
+            <div className="p-5">
+              {/* 헤더 섹션 */}
+              <div className="flex items-start gap-4 mb-4">
+                <div
+                  className={`p-3 rounded-lg bg-[#131515]/80 border border-[#2B2C28] flex-shrink-0`}
+                >
+                  <Icon className="w-6 h-6 text-[#7DE2D1]" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-3 mb-2 flex-wrap">
+                    <h3 className="text-white font-bold text-base font-mono break-all">
+                      {displayName.length > 60
+                        ? displayName.substring(0, 60) + "..."
+                        : displayName}
+                    </h3>
+                    {child.return && child.return.trim() && (
+                      <span className="text-xs text-[#7DE2D1] px-3 py-1.5 bg-[#7DE2D1]/10 border border-[#7DE2D1]/30 rounded-full font-semibold whitespace-nowrap">
+                        → {child.return}
+                      </span>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-2 mb-3">
+                    <FileCode className="w-3.5 h-3.5 text-slate-500 flex-shrink-0" />
+                    <span className="text-xs text-slate-400 font-mono break-all">
+                      {child.file}
+                    </span>
+                  </div>
+                  <div className="flex items-start gap-2 p-3 bg-[#131515]/60 rounded-lg border border-[#2B2C28]/50">
+                    <Info className="w-4 h-4 text-[#7DE2D1] flex-shrink-0 mt-0.5" />
+                    <p className="text-sm text-slate-300 leading-relaxed">
+                      {child.description}
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {/* 코드 섹션 */}
+              {child.code && child.code.trim() && (
+                <div className="mt-4 relative group/codeblock">
+                  <div className="absolute inset-0 bg-gradient-to-r from-[#339989]/10 to-[#7DE2D1]/10 rounded-lg blur-xl opacity-0 group-hover/codeblock:opacity-100 transition-opacity"></div>
+                  <div className="relative p-4 bg-[#0a0a0a] rounded-lg border-2 border-[#2B2C28] group-hover/codeblock:border-[#7DE2D1]/50 transition-colors">
+                    <div className="flex items-center justify-between mb-3">
+                      <div className="flex items-center gap-2">
+                        <Code2 className="w-4 h-4 text-[#7DE2D1]" />
+                        <span className="text-xs text-slate-400 uppercase font-bold tracking-wider">
+                          코드
+                        </span>
+                        <span className="text-xs text-slate-600">
+                          ({codeLines.length}줄)
+                        </span>
+                      </div>
+                      <button
+                        onClick={() => {
+                          navigator.clipboard.writeText(child.code);
+                        }}
+                        className="px-2 py-1 bg-[#2B2C28] hover:bg-[#339989] text-slate-400 hover:text-white rounded text-xs transition-colors opacity-0 group-hover/codeblock:opacity-100"
+                        title="코드 복사"
+                      >
+                        복사
+                      </button>
+                    </div>
+                    <div className="relative overflow-hidden rounded">
+                      <div className="overflow-x-auto max-h-96 overflow-y-auto">
+                        <pre className="text-sm text-slate-200 font-mono whitespace-pre break-words leading-relaxed m-0">
+                          <code className="block">
+                            {highlightCode(child.code)}
+                          </code>
+                        </pre>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* 연결선과 화살표 (자식이 있을 때) */}
+          {hasChildren && (
+            <div className="flex items-center justify-center my-4 relative">
+              <div className="absolute left-1/2 transform -translate-x-1/2 w-0.5 h-8 bg-gradient-to-b from-[#339989] to-[#7DE2D1]"></div>
+              <div className="relative z-10 bg-[#131515] p-2 rounded-full border-2 border-[#7DE2D1]/50">
+                <ArrowRight className="w-5 h-5 text-[#7DE2D1] rotate-90 animate-pulse" />
+              </div>
+            </div>
+          )}
+
+          {/* 자식 노드들 (재귀적으로 모두 펼침) */}
+          {hasChildren && (
+            <div className="ml-8 md:ml-12 relative">
+              <div className="absolute left-0 top-0 bottom-0 w-0.5 bg-gradient-to-b from-[#7DE2D1]/50 via-[#339989]/30 to-transparent"></div>
+              <div className="pl-6 md:pl-8">
+                {renderCodeFlow(child.children, level + 1, nodeId)}
+              </div>
             </div>
           )}
         </div>
@@ -359,39 +603,60 @@ export default function VisualizePage() {
       <Header />
 
       <div className="flex flex-col lg:flex-row flex-1 pt-20">
-        {/* 좌측 사이드바: 카테고리 및 엔드포인트 목록 */}
+        {/* 왼쪽 사이드바: API 목록 (개선된 디자인) */}
         <aside
-          className="w-full lg:w-80 border-r border-[#2B2C28] overflow-y-auto transition-all block"
+          className="w-full lg:w-72 xl:w-80 border-r-2 border-[#2B2C28] overflow-y-auto transition-all block flex-shrink-0"
           style={{
             backgroundColor: "#1a1a18",
             maxHeight: "calc(100vh - 80px)",
           }}
         >
-          <div className="p-4">
-            <h2 className="text-white font-bold text-lg mb-4 flex items-center gap-2">
-              <Settings className="w-5 h-5" />
-              API 분석 결과
+          <div className="p-5 sticky top-0 bg-[#1a1a18] z-10 border-b border-[#2B2C28] pb-4 mb-4">
+            <h2 className="text-white font-bold text-xl mb-1 flex items-center gap-3">
+              <div className="p-2 bg-gradient-to-br from-[#339989] to-[#7DE2D1] rounded-lg">
+                <Settings className="w-5 h-5 text-white" />
+              </div>
+              <span className="bg-gradient-to-r from-white to-slate-300 bg-clip-text text-transparent">
+                API 목록
+              </span>
             </h2>
-
+            <p className="text-xs text-slate-500 mt-2">
+              엔드포인트를 선택하여 코드 흐름을 확인하세요
+            </p>
+          </div>
+          <div className="px-5 pb-5">
             {analysisData.api.map((category) => (
               <div key={category.category} className="mb-6">
-                <div className="flex items-center gap-2 mb-3">
-                  {category.category === "auth" ? (
-                    <Lock className="w-4 h-4 text-[#7DE2D1]" />
-                  ) : (
-                    <MessageSquare className="w-4 h-4 text-[#FFB563]" />
-                  )}
-                  <h3
-                    className={`font-semibold text-sm ${
+                <div className="flex items-center gap-3 mb-4 p-3 bg-[#131515] rounded-lg border border-[#2B2C28]">
+                  <div
+                    className={`p-2 rounded-lg ${
                       category.category === "auth"
-                        ? "text-[#7DE2D1]"
-                        : "text-[#FFB563]"
+                        ? "bg-[#7DE2D1]/20"
+                        : "bg-[#FFB563]/20"
                     }`}
                   >
-                    {category.categoryName} ({category.endpoints.length}개)
-                  </h3>
+                    {category.category === "auth" ? (
+                      <Lock className="w-5 h-5 text-[#7DE2D1]" />
+                    ) : (
+                      <MessageSquare className="w-5 h-5 text-[#FFB563]" />
+                    )}
+                  </div>
+                  <div className="flex-1">
+                    <h3
+                      className={`font-bold text-sm ${
+                        category.category === "auth"
+                          ? "text-[#7DE2D1]"
+                          : "text-[#FFB563]"
+                      }`}
+                    >
+                      {category.categoryName}
+                    </h3>
+                    <p className="text-xs text-slate-500 mt-0.5">
+                      {category.endpoints.length}개 엔드포인트
+                    </p>
+                  </div>
                 </div>
-                <div className="space-y-1">
+                <div className="space-y-2">
                   {category.endpoints.map((endpoint) => {
                     const endpointId = `${category.category}-${endpoint.method}-${endpoint.url}`;
                     const isSelected = selectedEndpoint === endpointId;
@@ -401,31 +666,48 @@ export default function VisualizePage() {
                         onClick={() => {
                           setSelectedCategory(category.category);
                           setSelectedEndpoint(endpointId);
-                          setSelectedFunction(null);
-                          setExpandedNodes(new Set());
                         }}
-                        className={`w-full text-left px-3 py-2 rounded text-sm transition-all group ${
+                        className={`w-full text-left px-4 py-3 rounded-lg text-sm transition-all duration-200 group border-2 ${
                           isSelected
-                            ? "bg-[#339989] text-white shadow-lg"
-                            : "text-slate-400 hover:bg-[#2B2C28] hover:text-white"
+                            ? "bg-gradient-to-br from-[#339989] to-[#7DE2D1] text-white shadow-lg shadow-[#339989]/30 border-[#7DE2D1]"
+                            : "bg-[#131515] text-slate-400 hover:bg-[#2B2C28] hover:text-white border-[#2B2C28] hover:border-[#7DE2D1]/30"
                         }`}
                       >
-                        <div
-                          className="font-mono text-xs mb-1"
-                          style={{
-                            color: isSelected
-                              ? "#ffffff"
-                              : getMethodColor(endpoint.method),
-                          }}
-                        >
-                          {endpoint.method}
+                        <div className="flex items-center gap-2 mb-2">
+                          <div
+                            className={`font-mono text-xs font-bold px-2 py-1 rounded ${
+                              isSelected
+                                ? "bg-white/20 text-white"
+                                : "bg-[#2B2C28]"
+                            }`}
+                            style={{
+                              color: isSelected
+                                ? "#ffffff"
+                                : getMethodColor(endpoint.method),
+                            }}
+                          >
+                            {endpoint.method}
+                          </div>
+                          {isSelected && (
+                            <ArrowRight className="w-3 h-3 text-white animate-pulse" />
+                          )}
                         </div>
-                        <div className="font-medium truncate">
+                        <div
+                          className={`font-medium truncate ${
+                            isSelected ? "text-white" : "text-slate-300"
+                          }`}
+                        >
                           {endpoint.url}
                         </div>
-                        <div className="text-xs truncate mt-1 opacity-75">
-                          {endpoint.function}
-                        </div>
+                        {endpoint.function && (
+                          <div
+                            className={`text-xs truncate mt-1.5 ${
+                              isSelected ? "text-white/80" : "text-slate-500"
+                            }`}
+                          >
+                            {endpoint.function}
+                          </div>
+                        )}
                       </button>
                     );
                   })}
@@ -435,158 +717,112 @@ export default function VisualizePage() {
           </div>
         </aside>
 
-        {/* 중앙 영역: 함수 호출 흐름 트리 */}
+        {/* 가운데 영역: 코드 전체와 흐름 */}
         <main
-          className="flex-1 p-4 md:p-6 overflow-y-auto"
-          style={{ maxHeight: "calc(100vh - 64px)" }}
+          className="flex-1 p-6 md:p-8 lg:p-10 overflow-y-auto"
+          style={{ maxHeight: "calc(100vh - 80px)" }}
         >
           {selectedEndpointData ? (
             <>
-              <div className="mb-6">
-                <div className="flex flex-wrap items-center gap-3 mb-2">
+              {/* 엔드포인트 헤더 (개선된 디자인) */}
+              <div className="mb-8 pb-6 border-b-2 border-[#2B2C28]">
+                <div className="flex flex-wrap items-center gap-4 mb-4">
                   <div
-                    className="px-3 py-1 rounded font-mono text-xs font-bold"
+                    className="px-4 py-2 rounded-lg font-mono text-sm font-bold shadow-lg"
                     style={{
                       backgroundColor:
                         getMethodColor(selectedEndpointData.method) + "20",
                       color: getMethodColor(selectedEndpointData.method),
+                      border: `2px solid ${getMethodColor(
+                        selectedEndpointData.method
+                      )}40`,
                     }}
                   >
                     {selectedEndpointData.method}
                   </div>
-                  <h1 className="text-xl md:text-2xl font-bold text-white break-all">
+                  <h1 className="text-2xl md:text-3xl font-bold text-white break-all bg-gradient-to-r from-white to-slate-300 bg-clip-text text-transparent">
                     {selectedEndpointData.url}
                   </h1>
                 </div>
-                <p className="text-slate-400 font-mono text-sm break-all">
-                  {selectedEndpointData.function}
-                </p>
-              </div>
-
-              {/* 메인 함수 */}
-              <div className="mb-4">
-                <div className="bg-[#1a1a18] border-2 border-[#339989] rounded-lg p-4 hover:shadow-lg hover:shadow-[#339989]/20 transition-all">
-                  <div className="flex items-center gap-2 mb-2">
-                    <Code2 className="w-5 h-5 text-[#339989]" />
-                    <span className="text-white font-mono font-semibold break-all">
+                {selectedEndpointData.function && (
+                  <div className="flex items-center gap-2 mt-3">
+                    <Code2 className="w-4 h-4 text-[#7DE2D1]" />
+                    <p className="text-slate-400 font-mono text-sm break-all">
                       {selectedEndpointData.function}
-                    </span>
+                    </p>
                   </div>
-                  <div className="text-xs text-slate-400">
-                    Controller Function
-                  </div>
-                </div>
-              </div>
-
-              {/* 화살표 */}
-              <div className="flex items-center justify-center py-2 mb-4">
-                <ArrowRight className="w-6 h-6 text-[#7DE2D1] rotate-90" />
-              </div>
-
-              {/* 함수 호출 트리 */}
-              <div className="space-y-2">
-                {renderFunctionTree(
-                  selectedEndpointData.children,
-                  0,
-                  selectedEndpoint || ""
                 )}
-              </div>
-            </>
-          ) : (
-            <div className="flex flex-col items-center justify-center h-full text-center">
-              <FileCode className="w-16 h-16 text-slate-600 mb-4" />
-              <p className="text-slate-500 text-sm">
-                좌측에서 엔드포인트를 선택하면
-              </p>
-              <p className="text-slate-500 text-sm">
-                함수 호출 흐름이 표시됩니다
-              </p>
-            </div>
-          )}
-        </main>
-
-        {/* 우측 패널: 선택된 함수 상세 정보 */}
-        <aside
-          className={`w-full lg:w-96 border-l border-[#2B2C28] p-4 md:p-6 overflow-y-auto transition-all ${
-            selectedFunction ? "block" : "hidden lg:block"
-          }`}
-          style={{
-            backgroundColor: "#1a1a18",
-            maxHeight: "calc(100vh - 80px)",
-          }}
-        >
-          {selectedFunction ? (
-            <>
-              <div className="flex items-center justify-between mb-4">
-                <h2 className="text-white font-bold text-lg">함수 상세 정보</h2>
-                <button
-                  onClick={() => setSelectedFunction(null)}
-                  className="lg:hidden text-slate-400 hover:text-white"
-                >
-                  <X className="w-5 h-5" />
-                </button>
+                <div className="mt-4 flex items-center gap-2 text-xs text-slate-500">
+                  <div className="w-2 h-2 rounded-full bg-[#7DE2D1] animate-pulse"></div>
+                  <span>코드 흐름 분석 결과</span>
+                </div>
               </div>
 
-              <div className="space-y-4">
-                {/* 함수명 */}
-                <div className="bg-[#131515] rounded-lg p-4 border border-[#2B2C28]">
-                  <div className="text-xs text-slate-500 uppercase font-semibold mb-2">
-                    함수명
+              {/* 코드 흐름 (모든 노드 펼침) - 개선된 레이아웃 */}
+              <div className="relative">
+                {/* 타임라인 시작 마커 */}
+                <div className="flex items-center gap-3 mb-6 pb-4 border-b border-[#2B2C28]">
+                  <div className="w-3 h-3 rounded-full bg-gradient-to-br from-[#339989] to-[#7DE2D1] shadow-lg"></div>
+                  <div className="flex-1 h-0.5 bg-gradient-to-r from-[#339989] to-transparent"></div>
+                  <span className="text-xs text-slate-500 font-semibold uppercase tracking-wider">
+                    실행 흐름
+                  </span>
+                </div>
+
+                {selectedEndpointData.children &&
+                selectedEndpointData.children.length > 0 ? (
+                  <div className="space-y-2">
+                    {renderCodeFlow(
+                      selectedEndpointData.children,
+                      0,
+                      selectedEndpoint || ""
+                    )}
                   </div>
-                  <div className="flex items-center gap-2">
-                    {(() => {
-                      const Icon = getFileIcon(selectedFunction.file);
-                      return <Icon className="w-5 h-5 text-[#7DE2D1]" />;
-                    })()}
-                    <div className="text-[#7DE2D1] font-mono text-sm break-all">
-                      {selectedFunction.function}
+                ) : (
+                  <div className="text-center py-16 text-slate-500">
+                    <div className="w-20 h-20 bg-[#2B2C28] rounded-full flex items-center justify-center mx-auto mb-4">
+                      <FileCode className="w-10 h-10 opacity-50" />
                     </div>
+                    <p className="text-lg">
+                      이 엔드포인트에는 코드 흐름이 없습니다.
+                    </p>
                   </div>
-                </div>
+                )}
 
-                {/* 파일 경로 */}
-                <div className="bg-[#131515] rounded-lg p-4 border border-[#2B2C28]">
-                  <div className="text-xs text-slate-500 uppercase font-semibold mb-2">
-                    파일 경로
-                  </div>
-                  <div className="text-slate-300 text-sm font-mono break-all">
-                    {selectedFunction.file}
-                  </div>
-                </div>
-
-                {/* 설명 */}
-                <div className="bg-[#131515] rounded-lg p-4 border border-[#2B2C28]">
-                  <div className="text-xs text-slate-500 uppercase font-semibold mb-2 flex items-center gap-2">
-                    <Info className="w-4 h-4" />
-                    설명
-                  </div>
-                  <p className="text-slate-300 text-sm leading-relaxed">
-                    {selectedFunction.description}
-                  </p>
-                </div>
-
-                {/* 자식 함수 수 */}
-                {selectedFunction.children &&
-                  selectedFunction.children.length > 0 && (
-                    <div className="bg-[#131515] rounded-lg p-4 border border-[#2B2C28]">
-                      <div className="text-xs text-slate-500 uppercase font-semibold mb-2">
-                        호출하는 함수
-                      </div>
-                      <div className="text-2xl font-bold text-[#7DE2D1]">
-                        {selectedFunction.children.length}개
-                      </div>
+                {/* 타임라인 종료 마커 */}
+                {selectedEndpointData.children &&
+                  selectedEndpointData.children.length > 0 && (
+                    <div className="flex items-center gap-3 mt-8 pt-4 border-t border-[#2B2C28]">
+                      <div className="w-3 h-3 rounded-full bg-gradient-to-br from-[#7DE2D1] to-[#339989] shadow-lg"></div>
+                      <div className="flex-1 h-0.5 bg-gradient-to-r from-transparent to-[#7DE2D1]"></div>
+                      <span className="text-xs text-slate-500 font-semibold uppercase tracking-wider">
+                        완료
+                      </span>
                     </div>
                   )}
               </div>
             </>
           ) : (
-            <div className="flex flex-col items-center justify-center h-full text-center">
-              <FileCode className="w-16 h-16 text-slate-600 mb-4" />
-              <p className="text-slate-500 text-sm">함수를 클릭하면</p>
-              <p className="text-slate-500 text-sm">상세 정보가 표시됩니다</p>
+            <div className="flex flex-col items-center justify-center h-full text-center py-20">
+              <div className="w-24 h-24 bg-gradient-to-br from-[#339989]/20 to-[#7DE2D1]/10 rounded-full flex items-center justify-center mb-6 border-2 border-[#7DE2D1]/30">
+                <FileCode className="w-12 h-12 text-[#7DE2D1]" />
+              </div>
+              <h3 className="text-xl font-bold text-white mb-2">
+                API를 선택하세요
+              </h3>
+              <p className="text-slate-400 text-sm mb-1">
+                왼쪽 사이드바에서 API를 선택하면
+              </p>
+              <p className="text-slate-400 text-sm">
+                상세한 코드 흐름이 표시됩니다
+              </p>
+              <div className="mt-6 flex items-center gap-2 text-xs text-slate-500">
+                <ArrowRight className="w-4 h-4 rotate-180" />
+                <span>왼쪽에서 선택</span>
+              </div>
             </div>
           )}
-        </aside>
+        </main>
       </div>
     </main>
   );

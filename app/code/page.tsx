@@ -2,7 +2,7 @@
 
 import type React from "react";
 
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import {
@@ -91,9 +91,21 @@ export default function CodePage() {
   const [showStartDialog, setShowStartDialog] = useState(false);
   const [mergedContent, setMergedContent] = useState<string>("");
   const [isAnalysisComplete, setIsAnalysisComplete] = useState(false);
+  const [elapsedTime, setElapsedTime] = useState(0); // 경과 시간 (초)
   const analysisStepRef = useRef(0);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const timerIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const router = useRouter();
+
+  // 컴포넌트 언마운트 시 타이머 정리
+  useEffect(() => {
+    return () => {
+      if (timerIntervalRef.current) {
+        clearInterval(timerIntervalRef.current);
+        timerIntervalRef.current = null;
+      }
+    };
+  }, []);
 
   // 파일이 분석 대상인지 확인
   const shouldCollectFile = (file: File): boolean => {
@@ -260,7 +272,13 @@ export default function CodePage() {
     setIsAnalyzing(true);
     setIsAnalysisComplete(false);
     setAnalysisStep(0);
+    setElapsedTime(0); // 경과 시간 초기화
     analysisStepRef.current = 0;
+
+    // 경과 시간 타이머 시작
+    timerIntervalRef.current = setInterval(() => {
+      setElapsedTime((prev) => prev + 1);
+    }, 1000); // 1초마다 업데이트
 
     // aimodels 서버 URL (환경 변수 또는 기본값)
     const AIMODELS_BASE_URL =
@@ -300,14 +318,34 @@ export default function CodePage() {
         clearInterval(stepInterval);
         stepInterval = null;
       }
+      if (timerIntervalRef.current) {
+        clearInterval(timerIntervalRef.current);
+        timerIntervalRef.current = null;
+      }
 
       if (!response.ok) {
         const errorText = await response.text();
-        throw new Error(`AI 모델 서버 오류 (${response.status}): ${errorText}`);
+        console.error("서버 에러 응답:", errorText);
+        throw new Error(
+          `AI 모델 서버 오류 (${response.status}): ${errorText.substring(
+            0,
+            200
+          )}`
+        );
       }
 
-      const analysisResult = await response.json();
-      console.log("분석 결과:", analysisResult);
+      let analysisResult;
+      try {
+        analysisResult = await response.json();
+        console.log("분석 결과:", analysisResult);
+      } catch (jsonError) {
+        console.error("JSON 파싱 실패:", jsonError);
+        const responseText = await response.text();
+        console.error("서버 응답 텍스트:", responseText.substring(0, 500));
+        throw new Error(
+          `서버 응답을 파싱할 수 없습니다. JSON 형식 오류일 수 있습니다.`
+        );
+      }
 
       // 데이터 구조 검증
       if (
@@ -338,11 +376,27 @@ export default function CodePage() {
         clearInterval(stepInterval);
         stepInterval = null;
       }
+      if (timerIntervalRef.current) {
+        clearInterval(timerIntervalRef.current);
+        timerIntervalRef.current = null;
+      }
       setIsAnalyzing(false);
       setIsAnalysisComplete(false);
       setShowFolderInfo(false);
 
       console.error("AI 모델 서버 요청 실패:", apiError);
+
+      // 에러 메시지 추출
+      let errorMessage = "알 수 없는 오류";
+      if (apiError instanceof Error) {
+        errorMessage = apiError.message;
+        // JSON 파싱 에러인 경우 더 명확한 메시지
+        if (errorMessage.includes("JSON") || errorMessage.includes("파싱")) {
+          errorMessage =
+            "서버에서 JSON 파싱 오류가 발생했습니다. 서버 로그를 확인하세요.";
+        }
+      }
+
       // API 요청 실패 시에도 파일 다운로드는 진행
       const blob = new Blob([mergedContent], {
         type: "text/plain;charset=utf-8",
@@ -356,11 +410,15 @@ export default function CodePage() {
       document.body.removeChild(link);
       URL.revokeObjectURL(url);
 
-      throw new Error(
-        `AI 모델 서버 연결 실패: ${
-          apiError instanceof Error ? apiError.message : "알 수 없는 오류"
-        }\n\n파일은 다운로드되었습니다.`
+      // 사용자에게 에러 표시 (alert 대신 더 나은 UI)
+      alert(
+        `AI 모델 서버 오류가 발생했습니다.\n\n` +
+          `오류: ${errorMessage}\n\n` +
+          `코드 파일은 다운로드되었습니다.`
       );
+
+      // 에러를 다시 throw하지 않고 상태만 업데이트
+      // throw new Error(...) 제거하여 페이지가 깨지지 않도록 함
     }
   };
 
@@ -634,6 +692,19 @@ export default function CodePage() {
                 코드를 분석중입니다...
               </h2>
 
+              {/* 경과 시간 표시 */}
+              <div className="text-center mb-6">
+                <div className="inline-flex items-center gap-2 px-4 py-2 bg-[#2B2C28] rounded-lg border border-[#339989]/30">
+                  <div className="w-2 h-2 rounded-full bg-[#7DE2D1] animate-pulse"></div>
+                  <span className="text-slate-300 text-sm font-medium">
+                    경과 시간:{" "}
+                    <span className="text-[#7DE2D1] font-bold">
+                      {Math.floor(elapsedTime / 60)}분 {elapsedTime % 60}초
+                    </span>
+                  </span>
+                </div>
+              </div>
+
               {/* 현재 단계 표시 */}
               <div className="mb-10">
                 <div className="flex items-center justify-center gap-3 mb-6">
@@ -715,8 +786,8 @@ export default function CodePage() {
                 <input
                   ref={fileInputRef}
                   type="file"
-                  webkitdirectory="true"
-                  directory="true"
+                  {...({ webkitdirectory: "true" } as any)}
+                  {...({ directory: "true" } as any)}
                   onChange={handleFolderUpload}
                   disabled={isUploading}
                   className="hidden"
