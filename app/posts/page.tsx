@@ -155,26 +155,44 @@ export default function PostsPage() {
       setPosts(response.posts);
       setPagination(response.pagination);
 
-      // 각 게시글의 댓글 수 조회
-      const commentCountPromises = response.posts.map(async (post: Post) => {
+      // 각 게시글의 댓글 수 및 좋아요 상태 조회
+      const postDetailPromises = response.posts.map(async (post: Post) => {
         try {
-          const commentsResponse = await postApi.getComments(post.boardId);
+          const [commentsResponse, likeResponse] = await Promise.all([
+            postApi
+              .getComments(post.boardId)
+              .catch(() => ({ comments: [], commentCount: 0 })),
+            postApi
+              .getLikeStatus(post.boardId)
+              .catch(() => ({ isLiked: false, likeCount: 0 })),
+          ]);
           return {
             postId: post.boardId,
-            count: commentsResponse.commentCount || commentsResponse.comments?.length || 0,
+            commentCount:
+              commentsResponse.commentCount ||
+              commentsResponse.comments?.length ||
+              0,
+            isLiked: likeResponse.isLiked || false,
           };
         } catch (err) {
-          console.error(`게시글 ${post.boardId} 댓글 수 조회 실패:`, err);
-          return { postId: post.boardId, count: 0 };
+          console.error(`게시글 ${post.boardId} 상세 정보 조회 실패:`, err);
+          return { postId: post.boardId, commentCount: 0, isLiked: false };
         }
       });
 
-      const commentCountResults = await Promise.all(commentCountPromises);
+      const postDetailResults = await Promise.all(postDetailPromises);
       const newCommentCounts = new Map<number, number>();
-      commentCountResults.forEach((result) => {
-        newCommentCounts.set(result.postId, result.count);
+      const newLikedPosts = new Set<number>();
+
+      postDetailResults.forEach((result) => {
+        newCommentCounts.set(result.postId, result.commentCount);
+        if (result.isLiked) {
+          newLikedPosts.add(result.postId);
+        }
       });
+
       setCommentCounts(newCommentCounts);
+      setLikedPosts(newLikedPosts);
 
       // 각 게시글의 메인 이미지 파일 정보 조회
       const postsWithMainImages = response.posts.filter(
@@ -432,7 +450,8 @@ export default function PostsPage() {
       const commentsResponse = await postApi.getComments(postId);
       setSelectedPostComments(commentsResponse.comments || []);
       // 댓글 수 업데이트
-      const newCount = commentsResponse.commentCount || commentsResponse.comments?.length || 0;
+      const newCount =
+        commentsResponse.commentCount || commentsResponse.comments?.length || 0;
       setCommentCounts((prev) => new Map(prev).set(postId, newCount));
     } catch (err: any) {
       alert(err.message || "댓글 작성에 실패했습니다.");
@@ -449,7 +468,8 @@ export default function PostsPage() {
       const commentsResponse = await postApi.getComments(postId);
       setSelectedPostComments(commentsResponse.comments || []);
       // 댓글 수 업데이트
-      const newCount = commentsResponse.commentCount || commentsResponse.comments?.length || 0;
+      const newCount =
+        commentsResponse.commentCount || commentsResponse.comments?.length || 0;
       setCommentCounts((prev) => new Map(prev).set(postId, newCount));
       // 게시글 상세 정보 새로고침
       await fetchPostDetail(postId);
@@ -484,7 +504,8 @@ export default function PostsPage() {
       const commentsResponse = await postApi.getComments(postId);
       setSelectedPostComments(commentsResponse.comments || []);
       // 댓글 수 업데이트 (수정은 개수 변화 없음, 하지만 일관성을 위해)
-      const newCount = commentsResponse.commentCount || commentsResponse.comments?.length || 0;
+      const newCount =
+        commentsResponse.commentCount || commentsResponse.comments?.length || 0;
       setCommentCounts((prev) => new Map(prev).set(postId, newCount));
     } catch (err: any) {
       alert(err.message || "댓글 수정에 실패했습니다.");
@@ -503,7 +524,8 @@ export default function PostsPage() {
       const commentsResponse = await postApi.getComments(postId);
       setSelectedPostComments(commentsResponse.comments || []);
       // 댓글 수 업데이트
-      const newCount = commentsResponse.commentCount || commentsResponse.comments?.length || 0;
+      const newCount =
+        commentsResponse.commentCount || commentsResponse.comments?.length || 0;
       setCommentCounts((prev) => new Map(prev).set(postId, newCount));
     } catch (err: any) {
       alert(err.message || "댓글 삭제에 실패했습니다.");
@@ -1156,7 +1178,9 @@ export default function PostsPage() {
                     <h3 className="text-white font-medium">
                       {selectedPost.type === "question" ? "답변" : "댓글"}{" "}
                       {loadingComments ? (
-                        <span className="text-slate-400 text-sm">(로딩 중...)</span>
+                        <span className="text-slate-400 text-sm">
+                          (로딩 중...)
+                        </span>
                       ) : (
                         <span>{selectedPostComments.length}개</span>
                       )}
@@ -1171,14 +1195,27 @@ export default function PostsPage() {
                               .getComments(selectedPost.boardId)
                               .then((response) => {
                                 console.log("댓글 새로고침 응답:", response);
-                                setSelectedPostComments(response.comments || []);
+                                setSelectedPostComments(
+                                  response.comments || []
+                                );
                                 // 댓글 수 업데이트
-                                const newCount = response.commentCount || response.comments?.length || 0;
-                                setCommentCounts((prev) => new Map(prev).set(selectedPost.boardId, newCount));
+                                const newCount =
+                                  response.commentCount ||
+                                  response.comments?.length ||
+                                  0;
+                                setCommentCounts((prev) =>
+                                  new Map(prev).set(
+                                    selectedPost.boardId,
+                                    newCount
+                                  )
+                                );
                               })
                               .catch((err: any) => {
                                 console.error("댓글 새로고침 에러:", err);
-                                setCommentsError(err.message || "댓글을 불러오는데 실패했습니다.");
+                                setCommentsError(
+                                  err.message ||
+                                    "댓글을 불러오는데 실패했습니다."
+                                );
                               })
                               .finally(() => {
                                 setLoadingComments(false);
@@ -1231,122 +1268,124 @@ export default function PostsPage() {
                       </p>
                     ) : selectedPostComments.length > 0 ? (
                       selectedPostComments.map((comment) => (
-                      <div key={comment.replyId} className="flex gap-3">
-                        <div className="w-8 h-8 rounded-full bg-gradient-to-br from-[#339989] to-[#7DE2D1] flex items-center justify-center overflow-hidden flex-shrink-0">
-                          <User className="w-4 h-4 text-white" />
-                        </div>
-                        <div className="flex-1">
-                          <div className="flex items-center gap-2 text-sm text-slate-400 mb-1">
-                            <span className="text-white font-medium">
-                              {comment.name ||
-                                comment.userName ||
-                                (typeof comment.userId === "number"
-                                  ? `User ${comment.userId}`
-                                  : comment.userId) ||
-                                (comment.userIdx
-                                  ? `User ${comment.userIdx}`
-                                  : "익명")}
-                            </span>
-                            <span>•</span>
-                            <span>
-                              {new Date(comment.createdAt).toLocaleString(
-                                "ko-KR"
-                              )}
-                            </span>
-                            {comment.isSelected && (
-                              <span className="px-2 py-0.5 bg-[#339989] text-white text-xs rounded">
-                                채택됨
-                              </span>
-                            )}
-                            {isMyComment(comment) && (
-                              <div className="flex items-center gap-2 ml-auto">
-                                {editingCommentId === comment.replyId ? (
-                                  <>
-                                    <Button
-                                      onClick={() =>
-                                        handleUpdateComment(
-                                          selectedPost.boardId,
-                                          comment.replyId
-                                        )
-                                      }
-                                      disabled={submitting}
-                                      className="px-2 py-1 text-xs bg-[#339989] text-white rounded hover:bg-[#7DE2D1] transition disabled:opacity-50"
-                                    >
-                                      저장
-                                    </Button>
-                                    <Button
-                                      onClick={handleCancelEdit}
-                                      disabled={submitting}
-                                      className="px-2 py-1 text-xs bg-[#2B2C28] text-slate-400 rounded hover:bg-[#2B2C28]/80 transition"
-                                    >
-                                      취소
-                                    </Button>
-                                  </>
-                                ) : (
-                                  <>
-                                    <Button
-                                      onClick={() => handleEditComment(comment)}
-                                      className="px-2 py-1 text-xs text-slate-400 hover:text-white transition"
-                                    >
-                                      수정
-                                    </Button>
-                                    <Button
-                                      onClick={() =>
-                                        handleDeleteComment(
-                                          selectedPost.boardId,
-                                          comment.replyId
-                                        )
-                                      }
-                                      disabled={submitting}
-                                      className="px-2 py-1 text-xs text-red-400 hover:text-red-300 transition disabled:opacity-50"
-                                    >
-                                      삭제
-                                    </Button>
-                                  </>
-                                )}
-                              </div>
-                            )}
+                        <div key={comment.replyId} className="flex gap-3">
+                          <div className="w-8 h-8 rounded-full bg-gradient-to-br from-[#339989] to-[#7DE2D1] flex items-center justify-center overflow-hidden flex-shrink-0">
+                            <User className="w-4 h-4 text-white" />
                           </div>
-                          {editingCommentId === comment.replyId ? (
-                            <textarea
-                              value={editCommentText[comment.replyId] || ""}
-                              onChange={(e) =>
-                                setEditCommentText({
-                                  ...editCommentText,
-                                  [comment.replyId]: e.target.value,
-                                })
-                              }
-                              rows={3}
-                              className="w-full bg-[#131515] border border-[#2B2C28] rounded-lg px-4 py-2 text-white resize-none focus:outline-none focus:border-[#339989] transition mb-2"
-                            />
-                          ) : (
-                            <p className="text-sm text-slate-300">
-                              {comment.reply || comment.content}
-                            </p>
-                          )}
-                          {selectedPost.type === "question" &&
-                            !comment.isSelected &&
-                            !selectedPostComments.some((c) => c.isSelected) && // 이미 채택된 댓글이 없을 때만
-                            editingCommentId !== comment.replyId &&
-                            currentUserId !== null &&
-                            ((selectedPost.userIdx !== undefined &&
-                              selectedPost.userIdx === currentUserId) ||
-                              (typeof selectedPost.userId === "number" &&
-                                selectedPost.userId === currentUserId)) && (
-                              <Button
-                                onClick={() =>
-                                  handleSelectComment(
-                                    selectedPost.boardId,
-                                    comment.replyId
-                                  )
+                          <div className="flex-1">
+                            <div className="flex items-center gap-2 text-sm text-slate-400 mb-1">
+                              <span className="text-white font-medium">
+                                {comment.name ||
+                                  comment.userName ||
+                                  (typeof comment.userId === "number"
+                                    ? `User ${comment.userId}`
+                                    : comment.userId) ||
+                                  (comment.userIdx
+                                    ? `User ${comment.userIdx}`
+                                    : "익명")}
+                              </span>
+                              <span>•</span>
+                              <span>
+                                {new Date(comment.createdAt).toLocaleString(
+                                  "ko-KR"
+                                )}
+                              </span>
+                              {comment.isSelected && (
+                                <span className="px-2 py-0.5 bg-[#339989] text-white text-xs rounded">
+                                  채택됨
+                                </span>
+                              )}
+                              {isMyComment(comment) && (
+                                <div className="flex items-center gap-2 ml-auto">
+                                  {editingCommentId === comment.replyId ? (
+                                    <>
+                                      <Button
+                                        onClick={() =>
+                                          handleUpdateComment(
+                                            selectedPost.boardId,
+                                            comment.replyId
+                                          )
+                                        }
+                                        disabled={submitting}
+                                        className="px-2 py-1 text-xs bg-[#339989] text-white rounded hover:bg-[#7DE2D1] transition disabled:opacity-50"
+                                      >
+                                        저장
+                                      </Button>
+                                      <Button
+                                        onClick={handleCancelEdit}
+                                        disabled={submitting}
+                                        className="px-2 py-1 text-xs bg-[#2B2C28] text-slate-400 rounded hover:bg-[#2B2C28]/80 transition"
+                                      >
+                                        취소
+                                      </Button>
+                                    </>
+                                  ) : (
+                                    <>
+                                      <Button
+                                        onClick={() =>
+                                          handleEditComment(comment)
+                                        }
+                                        className="px-2 py-1 text-xs text-slate-400 hover:text-white transition"
+                                      >
+                                        수정
+                                      </Button>
+                                      <Button
+                                        onClick={() =>
+                                          handleDeleteComment(
+                                            selectedPost.boardId,
+                                            comment.replyId
+                                          )
+                                        }
+                                        disabled={submitting}
+                                        className="px-2 py-1 text-xs text-red-400 hover:text-red-300 transition disabled:opacity-50"
+                                      >
+                                        삭제
+                                      </Button>
+                                    </>
+                                  )}
+                                </div>
+                              )}
+                            </div>
+                            {editingCommentId === comment.replyId ? (
+                              <textarea
+                                value={editCommentText[comment.replyId] || ""}
+                                onChange={(e) =>
+                                  setEditCommentText({
+                                    ...editCommentText,
+                                    [comment.replyId]: e.target.value,
+                                  })
                                 }
-                                className="mt-2 px-3 py-1 text-xs bg-[#339989] text-white rounded hover:bg-[#7DE2D1] transition"
-                              >
-                                채택하기
-                              </Button>
+                                rows={3}
+                                className="w-full bg-[#131515] border border-[#2B2C28] rounded-lg px-4 py-2 text-white resize-none focus:outline-none focus:border-[#339989] transition mb-2"
+                              />
+                            ) : (
+                              <p className="text-sm text-slate-300">
+                                {comment.reply || comment.content}
+                              </p>
                             )}
+                            {selectedPost.type === "question" &&
+                              !comment.isSelected &&
+                              !selectedPostComments.some((c) => c.isSelected) && // 이미 채택된 댓글이 없을 때만
+                              editingCommentId !== comment.replyId &&
+                              currentUserId !== null &&
+                              ((selectedPost.userIdx !== undefined &&
+                                selectedPost.userIdx === currentUserId) ||
+                                (typeof selectedPost.userId === "number" &&
+                                  selectedPost.userId === currentUserId)) && (
+                                <Button
+                                  onClick={() =>
+                                    handleSelectComment(
+                                      selectedPost.boardId,
+                                      comment.replyId
+                                    )
+                                  }
+                                  className="mt-2 px-3 py-1 text-xs bg-[#339989] text-white rounded hover:bg-[#7DE2D1] transition"
+                                >
+                                  채택하기
+                                </Button>
+                              )}
+                          </div>
                         </div>
-                      </div>
                       ))
                     ) : (
                       <p className="text-slate-400 text-sm text-center py-4">
