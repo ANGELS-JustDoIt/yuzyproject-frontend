@@ -362,6 +362,28 @@ export default function CodePage() {
       // 결과를 localStorage에 저장
       localStorage.setItem("analysisResult", JSON.stringify(analysisResult));
 
+      // DB에 분석 결과 저장
+      setProgress("분석 결과를 저장하는 중...");
+      try {
+        const { myApi } = await import("@/lib/api");
+
+        // analysisText 생성 (요약 텍스트)
+        const analysisText = `코드 분석 완료 - ${
+          folderInfo?.fileCount || 0
+        }개 파일, ${folderInfo?.totalLines || 0}줄, ${
+          folderInfo?.totalChars || 0
+        }자`;
+
+        await myApi.createArchive({
+          analysisText,
+          rawResponse: analysisResult,
+        });
+        console.log("분석 결과가 DB에 저장되었습니다.");
+      } catch (saveError) {
+        console.error("DB 저장 실패:", saveError);
+        // 저장 실패해도 분석 결과는 사용 가능하므로 계속 진행
+      }
+
       // 분석 완료 단계 표시
       setAnalysisStep(ANALYSIS_STEPS.length - 1);
       setIsAnalysisComplete(true);
