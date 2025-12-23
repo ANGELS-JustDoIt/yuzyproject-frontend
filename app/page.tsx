@@ -45,60 +45,186 @@ export default function Home() {
   };
 
   return (
-    <main className="min-h-screen" style={{ backgroundColor: "#131515" }}>
+    <main className="relative min-h-screen overflow-hidden bg-[#0b0c0c] text-white pt-[88px]">
+      <div className="pointer-events-none absolute inset-0 bg-grid opacity-40" />
+      <div
+        className="glow-spot"
+        style={{
+          top: "-6rem",
+          right: "-4rem",
+          width: "520px",
+          height: "520px",
+          background: "radial-gradient(circle, #339989 0%, transparent 60%)",
+        }}
+      />
+      <div
+        className="glow-spot secondary"
+        style={{
+          bottom: "-4rem",
+          left: "-3rem",
+          width: "460px",
+          height: "460px",
+          background: "radial-gradient(circle, #7de2d1 0%, transparent 65%)",
+        }}
+      />
       <Header />
 
       {/* Hero Section */}
-      <section className="pt-40 pb-32 px-6 text-center relative overflow-hidden">
-        <div
-          className="absolute top-0 right-0 w-96 h-96 rounded-full opacity-20"
-          style={{ backgroundColor: "#339989", filter: "blur(100px)" }}
-        ></div>
-        <div
-          className="absolute bottom-0 left-1/4 w-64 h-64 rounded-full opacity-15"
-          style={{ backgroundColor: "#7DE2D1", filter: "blur(80px)" }}
-        ></div>
+      <section className="relative pt-24 pb-28 px-6">
+        <div className="max-w-6xl mx-auto grid md:grid-cols-[1.1fr,0.9fr] gap-12 items-center">
+          <div className="relative space-y-8 animate-fade-in-slow">
+            <div className="inline-flex items-center gap-3 rounded-full glass-card px-4 py-2 text-sm text-slate-200 shadow-lg">
+              <span className="floating-dot" />
+              <span className="font-semibold tracking-tight">
+                국비수업생을 위한 코드 학습 자동화
+              </span>
+              <span className="text-[#7DE2D1] text-xs font-semibold">
+                실시간 · 시각화 · 커뮤니티
+              </span>
+            </div>
 
-        <div className="max-w-5xl mx-auto relative z-10">
-          <h1 className="text-6xl md:text-7xl font-bold text-white mb-8 leading-tight tracking-tight">
-            코드 수업,
-            <br />
-            <span style={{ color: "#7DE2D1" }}>유지프로젝트와 함께</span>
-          </h1>
+            <h1 className="text-5xl md:text-6xl lg:text-7xl font-bold leading-tight tracking-tight">
+              코드 수업,
+              <br />
+              <span
+                className="bg-clip-text text-transparent"
+                style={{
+                  backgroundImage:
+                    "linear-gradient(120deg, #7DE2D1 0%, #339989 45%, #9fffe2 100%)",
+                }}
+              >
+                유지프로젝트와 함께
+              </span>
+            </h1>
 
-          <p className="text-lg text-slate-400 mb-12 max-w-3xl mx-auto leading-relaxed font-light">
-            수업 중 타이핑을 못해 놓치던 코드부터 복습 시간까지. 유지프로젝트가
-            당신의 학습 경험을 완전히 바꿔줄 것입니다.
-          </p>
+            <p className="text-lg text-slate-300 max-w-2xl leading-relaxed font-light">
+              실시간 캡처, AI 분석, 코드 흐름 다이어그램까지. 놓치는 부분 없이
+              수업을 따라가고 복습 시간을 확 줄여보세요.
+            </p>
 
-          <div className="flex flex-col sm:flex-row gap-4 justify-center mb-16">
-            <Button
-              onClick={() => {
-                if (isLoggedIn) {
-                  router.push("/code");
-                } else {
-                  setShowAuthModal(true);
-                }
-              }}
-              className="text-white px-8 py-6 text-base h-auto font-semibold hover:opacity-90 transition"
-              style={{ backgroundColor: "#339989" }}
-            >
-              {isLoggedIn ? "코드 분석 시작하기" : "무료로 시작하기"}
-              <ArrowRight className="w-4 h-4 ml-2" />
-            </Button>
-            <Button
-              onClick={() => router.push("/visualize-sample")}
-              className="border border-[#2B2C28] text-white hover:bg-[#2B2C28]/50 px-8 py-6 text-base h-auto bg-transparent font-semibold transition"
-            >
-              데모 보기
-            </Button>
+            <div className="flex flex-col sm:flex-row gap-4">
+              <Button
+                onClick={() => {
+                  if (isLoggedIn) {
+                    router.push("/code");
+                  } else {
+                    setShowAuthModal(true);
+                  }
+                }}
+                className="text-white px-8 py-6 text-base h-auto font-semibold hover:opacity-90 transition shadow-xl"
+                style={{ backgroundColor: "#339989" }}
+              >
+                {isLoggedIn ? "코드 분석 시작하기" : "무료로 시작하기"}
+                <ArrowRight className="w-4 h-4 ml-2" />
+              </Button>
+              <Button
+                onClick={() => router.push("/visualize-sample")}
+                className="border border-[#2B2C28] text-white hover:bg-[#2B2C28]/60 px-8 py-6 text-base h-auto bg-[#1a1a18]/50 font-semibold transition glass-card"
+              >
+                데모 보기
+              </Button>
+            </div>
+
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+              {[
+                { title: "실시간 캡처", value: "0.8초", desc: "OCR 변환 속도" },
+                { title: "복습 단축", value: "2.3h", desc: "평균 절약 시간" },
+                { title: "활성 사용자", value: "1.5k+", desc: "원생 커뮤니티" },
+                {
+                  title: "분석 정확도",
+                  value: "98%",
+                  desc: "코드 추출 성공률",
+                },
+              ].map((item) => (
+                <div
+                  key={item.title}
+                  className="glass-card rounded-xl p-4 border border-[#2B2C28] tilt-hover"
+                >
+                  <p className="text-xs uppercase tracking-[0.12em] text-slate-400">
+                    {item.title}
+                  </p>
+                  <p className="text-2xl font-bold text-white mt-1">
+                    {item.value}
+                  </p>
+                  <p className="text-slate-400 text-xs">{item.desc}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div className="relative">
+            <div className="absolute -left-6 -top-6 w-12 h-12 floating-dot opacity-80" />
+            <div className="absolute -right-10 top-10 w-24 h-24 rounded-full bg-gradient-to-br from-[#339989]/30 to-[#7DE2D1]/10 blur-3xl" />
+            <div className="glass-card rounded-2xl border border-[#2B2C28] p-6 shadow-2xl relative overflow-hidden">
+              <div className="absolute inset-0 opacity-30 bg-[radial-gradient(circle_at_20%_20%,#7DE2D1_0%,transparent_35%),radial-gradient(circle_at_80%_0%,#339989_0%,transparent_30%),radial-gradient(circle_at_60%_70%,#7DE2D1_0%,transparent_40%)]" />
+              <div className="relative space-y-4">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <div className="w-3 h-3 rounded-full bg-[#7DE2D1]" />
+                    <p className="text-sm text-slate-300">
+                      실시간 캡처 미리보기
+                    </p>
+                  </div>
+                  <span className="text-xs text-slate-400">AI 정리 중</span>
+                </div>
+                <div className="rounded-xl bg-[#0f1010] border border-[#2B2C28] p-4 space-y-3 animate-scale-breathe">
+                  {[
+                    "강사가 작성한 함수 호출 흐름 감지",
+                    "OCR → 코드 정제 → LLM 요약",
+                    "의존성 맵과 API 문서 자동 생성",
+                  ].map((item) => (
+                    <div
+                      key={item}
+                      className="flex items-start gap-3 text-sm text-slate-200"
+                    >
+                      <div className="w-2 h-2 rounded-full bg-[#7DE2D1]" />
+                      <p>{item}</p>
+                    </div>
+                  ))}
+                </div>
+                <div className="grid grid-cols-3 gap-3">
+                  {["다이어그램", "OCR", "커뮤니티"].map((tag) => (
+                    <div
+                      key={tag}
+                      className="text-center text-xs font-semibold py-3 rounded-lg bg-[#1a1a18]/70 border border-[#2B2C28] tilt-hover"
+                    >
+                      {tag}
+                    </div>
+                  ))}
+                </div>
+                <div className="rounded-xl bg-gradient-to-r from-[#2b2c28] via-[#1a1a18] to-[#2b2c28] p-4 border border-[#2B2C28]/80">
+                  <div className="flex items-center gap-2 text-xs text-slate-400">
+                    <Eye className="w-4 h-4 text-[#7DE2D1]" />
+                    <span>AI가 주요 코드를 탐지하는 중</span>
+                  </div>
+                  <div className="mt-3 space-y-2 text-sm">
+                    <div className="flex justify-between">
+                      <span className="text-slate-300">
+                        코드 흐름 다이어그램
+                      </span>
+                      <span className="text-[#7DE2D1]">실행</span>
+                    </div>
+                    <div className="w-full h-2 rounded-full bg-[#2B2C28] overflow-hidden">
+                      <div
+                        className="h-full rounded-full"
+                        style={{
+                          width: "76%",
+                          background:
+                            "linear-gradient(90deg, #339989, #7DE2D1, #339989)",
+                        }}
+                      />
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       </section>
 
       <section className="py-28 px-6 border-t border-[#2B2C28] bg-[#1a1a18]/30">
         <div className="max-w-6xl mx-auto">
-          <div className="text-center mb-16">
+          <div className="text-center mb-16 animate-fade-in-slow">
             <h2 className="text-5xl font-bold text-white mb-6">
               왜 유지프로젝트인가?
             </h2>
@@ -110,8 +236,8 @@ export default function Home() {
           </div>
 
           <div className="grid md:grid-cols-3 gap-8">
-            <div className="p-8 rounded-xl border border-[#2B2C28] bg-[#1a1a18]/80">
-              <div className="w-12 h-12 rounded-lg bg-[#339989]/20 flex items-center justify-center mb-6">
+            <div className="p-8 rounded-xl border border-[#2B2C28] glass-card tilt-hover">
+              <div className="w-12 h-12 rounded-lg flex items-center justify-center mb-6 bg-[#3399891f]">
                 <Code2 className="w-6 h-6 text-[#7DE2D1]" />
               </div>
               <h3 className="text-xl font-bold text-white mb-4">
@@ -123,8 +249,8 @@ export default function Home() {
               </p>
             </div>
 
-            <div className="p-8 rounded-xl border border-[#2B2C28] bg-[#1a1a18]/80">
-              <div className="w-12 h-12 rounded-lg bg-[#339989]/20 flex items-center justify-center mb-6">
+            <div className="p-8 rounded-xl border border-[#2B2C28] glass-card tilt-hover">
+              <div className="w-12 h-12 rounded-lg flex items-center justify-center mb-6 bg-[#3399891f]">
                 <Eye className="w-6 h-6 text-[#7DE2D1]" />
               </div>
               <h3 className="text-xl font-bold text-white mb-4">시각적 이해</h3>
@@ -134,8 +260,8 @@ export default function Home() {
               </p>
             </div>
 
-            <div className="p-8 rounded-xl border border-[#2B2C28] bg-[#1a1a18]/80">
-              <div className="w-12 h-12 rounded-lg bg-[#339989]/20 flex items-center justify-center mb-6">
+            <div className="p-8 rounded-xl border border-[#2B2C28] glass-card tilt-hover">
+              <div className="w-12 h-12 rounded-lg flex items-center justify-center mb-6 bg-[#3399891f]">
                 <MessageSquare className="w-6 h-6 text-[#7DE2D1]" />
               </div>
               <h3 className="text-xl font-bold text-white mb-4">함께 성장</h3>
@@ -379,12 +505,12 @@ export default function Home() {
               return (
                 <div
                   key={i}
-                  className="p-6 rounded-xl border border-[#2B2C28] bg-[#1a1a18]/80 hover:border-[#339989]/50 transition duration-300"
+                  className="p-6 rounded-xl border border-[#2B2C28] bg-[#1a1a18]/80 hover:border-[#339989]/50 transition duration-300 glass-card tilt-hover"
                 >
                   <div className="flex items-start gap-4">
                     <div
                       className="w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0"
-                      style={{ backgroundColor: "#339989/20" }}
+                      style={{ backgroundColor: "rgba(51, 153, 137, 0.15)" }}
                     >
                       <IconComponent
                         className="w-5 h-5"
