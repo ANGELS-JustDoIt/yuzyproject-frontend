@@ -16,21 +16,29 @@ import Link from "next/link";
 import Header from "@/components/Header";
 
 // JSON 구조에 맞는 타입 정의
-interface FunctionChild {
+interface MainFlowItem {
   file: string;
   code: string;
   description: string;
-  children: FunctionChild[];
-  return?: string;
-  function?: string; // 선택적 (하위 호환성)
+  function?: string; // 선택적
+}
+
+interface DetailFunction {
+  function: string;
+  file: string;
+  code: string;
+  description: string;
 }
 
 interface Endpoint {
   method: string;
   url: string;
-  children: FunctionChild[];
+  mainFlow: MainFlowItem[];
+  detailFunctions: DetailFunction[];
+  // 하위 호환성을 위한 선택적 필드
+  children?: any[];
   return?: string;
-  function?: string; // 선택적 (하위 호환성)
+  function?: string;
 }
 
 interface Category {
@@ -403,9 +411,120 @@ export default function VisualizePage() {
     });
   };
 
-  // 토글 없이 모든 노드를 펼쳐서 렌더링 (개선된 시각화)
+  // 코드 카드 렌더링 (공통)
+  const renderCodeCard = (
+    item: MainFlowItem | DetailFunction,
+    index: number,
+    isMainFlow: boolean = true
+  ) => {
+    const Icon = getFileIcon(item.file);
+    const codeLines = item.code ? item.code.split("\n") : [];
+    const displayName =
+      "function" in item && item.function
+        ? item.function
+        : codeLines[0]?.substring(0, 50) || "코드";
+
+    return (
+      <div key={index} className="mb-6 relative">
+        {/* 단계 번호 배지 */}
+        <div className="absolute -left-8 top-4 w-6 h-6 rounded-full bg-gradient-to-br from-[#339989] to-[#7DE2D1] flex items-center justify-center text-white text-xs font-bold shadow-lg z-10">
+          {index + 1}
+        </div>
+
+        {/* 코드 카드 */}
+        <div
+          className={`rounded-xl border-2 transition-all duration-300 hover:scale-[1.01] ${
+            isMainFlow
+              ? "bg-gradient-to-br from-[#339989]/20 to-[#7DE2D1]/10 border-[#339989] shadow-lg shadow-[#339989]/30"
+              : "bg-gradient-to-br from-[#7DE2D1]/15 to-[#2B2C28] border-[#7DE2D1]/50 shadow-md shadow-[#7DE2D1]/20"
+          }`}
+        >
+          <div className="p-5">
+            {/* 헤더 섹션 */}
+            <div className="flex items-start gap-4 mb-4">
+              <div className="p-3 rounded-lg bg-[#131515]/80 border border-[#2B2C28] flex-shrink-0">
+                <Icon className="w-6 h-6 text-[#7DE2D1]" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-3 mb-2 flex-wrap">
+                  <h3 className="text-white font-bold text-base font-mono break-all">
+                    {displayName.length > 60
+                      ? displayName.substring(0, 60) + "..."
+                      : displayName}
+                  </h3>
+                </div>
+                <div className="flex items-center gap-2 mb-3">
+                  <FileCode className="w-3.5 h-3.5 text-slate-500 flex-shrink-0" />
+                  <span className="text-xs text-slate-400 font-mono break-all">
+                    {item.file}
+                  </span>
+                </div>
+                <div className="flex items-start gap-2 p-3 bg-[#131515]/60 rounded-lg border border-[#2B2C28]/50">
+                  <Info className="w-4 h-4 text-[#7DE2D1] flex-shrink-0 mt-0.5" />
+                  <p className="text-sm text-slate-300 leading-relaxed">
+                    {item.description}
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* 코드 섹션 */}
+            {item.code && item.code.trim() && (
+              <div className="mt-4 relative group/codeblock">
+                <div className="absolute inset-0 bg-gradient-to-r from-[#339989]/10 to-[#7DE2D1]/10 rounded-lg blur-xl opacity-0 group-hover/codeblock:opacity-100 transition-opacity"></div>
+                <div className="relative p-4 bg-[#0a0a0a] rounded-lg border-2 border-[#2B2C28] group-hover/codeblock:border-[#7DE2D1]/50 transition-colors">
+                  <div className="flex items-center justify-between mb-3">
+                    <div className="flex items-center gap-2">
+                      <Code2 className="w-4 h-4 text-[#7DE2D1]" />
+                      <span className="text-xs text-slate-400 uppercase font-bold tracking-wider">
+                        코드
+                      </span>
+                      <span className="text-xs text-slate-600">
+                        ({codeLines.length}줄)
+                      </span>
+                    </div>
+                    <button
+                      onClick={() => {
+                        navigator.clipboard.writeText(item.code);
+                      }}
+                      className="px-2 py-1 bg-[#2B2C28] hover:bg-[#339989] text-slate-400 hover:text-white rounded text-xs transition-colors opacity-0 group-hover/codeblock:opacity-100"
+                      title="코드 복사"
+                    >
+                      복사
+                    </button>
+                  </div>
+                  <div className="relative overflow-hidden rounded">
+                    <div className="overflow-x-auto max-h-96 overflow-y-auto">
+                      <pre className="text-sm text-slate-200 font-mono whitespace-pre break-words leading-relaxed m-0">
+                        <code className="block">
+                          {highlightCode(item.code)}
+                        </code>
+                      </pre>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* 연결선과 화살표 (mainFlow에서만, 마지막이 아닐 때) */}
+        {isMainFlow &&
+          index < (selectedEndpointData?.mainFlow?.length || 0) - 1 && (
+            <div className="flex items-center justify-center my-4 relative">
+              <div className="absolute left-1/2 transform -translate-x-1/2 w-0.5 h-8 bg-gradient-to-b from-[#339989] to-[#7DE2D1]"></div>
+              <div className="relative z-10 bg-[#131515] p-2 rounded-full border-2 border-[#7DE2D1]/50">
+                <ArrowRight className="w-5 h-5 text-[#7DE2D1] rotate-90 animate-pulse" />
+              </div>
+            </div>
+          )}
+      </div>
+    );
+  };
+
+  // 하위 호환성을 위한 기존 renderCodeFlow 함수 (children 형식 지원)
   const renderCodeFlow = (
-    children: FunctionChild[],
+    children: any[],
     level: number = 0,
     parentId: string = ""
   ) => {
@@ -418,7 +537,6 @@ export default function VisualizePage() {
       const displayName =
         child.function || firstLine.substring(0, 50) || "코드";
 
-      // 레벨별 색상 그라데이션
       const levelColors = [
         {
           bg: "bg-gradient-to-br from-[#339989]/20 to-[#7DE2D1]/10",
@@ -440,21 +558,15 @@ export default function VisualizePage() {
 
       return (
         <div key={nodeId} className="mb-6 relative">
-          {/* 단계 번호 배지 */}
           <div className="absolute -left-8 top-4 w-6 h-6 rounded-full bg-gradient-to-br from-[#339989] to-[#7DE2D1] flex items-center justify-center text-white text-xs font-bold shadow-lg z-10">
             {index + 1}
           </div>
-
-          {/* 코드 카드 */}
           <div
             className={`rounded-xl border-2 transition-all duration-300 hover:scale-[1.01] ${colors.bg} ${colors.border} ${colors.shadow}`}
           >
             <div className="p-5">
-              {/* 헤더 섹션 */}
               <div className="flex items-start gap-4 mb-4">
-                <div
-                  className={`p-3 rounded-lg bg-[#131515]/80 border border-[#2B2C28] flex-shrink-0`}
-                >
+                <div className="p-3 rounded-lg bg-[#131515]/80 border border-[#2B2C28] flex-shrink-0">
                   <Icon className="w-6 h-6 text-[#7DE2D1]" />
                 </div>
                 <div className="flex-1 min-w-0">
@@ -464,11 +576,6 @@ export default function VisualizePage() {
                         ? displayName.substring(0, 60) + "..."
                         : displayName}
                     </h3>
-                    {child.return && child.return.trim() && (
-                      <span className="text-xs text-[#7DE2D1] px-3 py-1.5 bg-[#7DE2D1]/10 border border-[#7DE2D1]/30 rounded-full font-semibold whitespace-nowrap">
-                        → {child.return}
-                      </span>
-                    )}
                   </div>
                   <div className="flex items-center gap-2 mb-3">
                     <FileCode className="w-3.5 h-3.5 text-slate-500 flex-shrink-0" />
@@ -484,20 +591,14 @@ export default function VisualizePage() {
                   </div>
                 </div>
               </div>
-
-              {/* 코드 섹션 */}
               {child.code && child.code.trim() && (
                 <div className="mt-4 relative group/codeblock">
-                  <div className="absolute inset-0 bg-gradient-to-r from-[#339989]/10 to-[#7DE2D1]/10 rounded-lg blur-xl opacity-0 group-hover/codeblock:opacity-100 transition-opacity"></div>
                   <div className="relative p-4 bg-[#0a0a0a] rounded-lg border-2 border-[#2B2C28] group-hover/codeblock:border-[#7DE2D1]/50 transition-colors">
                     <div className="flex items-center justify-between mb-3">
                       <div className="flex items-center gap-2">
                         <Code2 className="w-4 h-4 text-[#7DE2D1]" />
                         <span className="text-xs text-slate-400 uppercase font-bold tracking-wider">
                           코드
-                        </span>
-                        <span className="text-xs text-slate-600">
-                          ({codeLines.length}줄)
                         </span>
                       </div>
                       <button
@@ -524,18 +625,6 @@ export default function VisualizePage() {
               )}
             </div>
           </div>
-
-          {/* 연결선과 화살표 (자식이 있을 때) */}
-          {hasChildren && (
-            <div className="flex items-center justify-center my-4 relative">
-              <div className="absolute left-1/2 transform -translate-x-1/2 w-0.5 h-8 bg-gradient-to-b from-[#339989] to-[#7DE2D1]"></div>
-              <div className="relative z-10 bg-[#131515] p-2 rounded-full border-2 border-[#7DE2D1]/50">
-                <ArrowRight className="w-5 h-5 text-[#7DE2D1] rotate-90 animate-pulse" />
-              </div>
-            </div>
-          )}
-
-          {/* 자식 노드들 (재귀적으로 모두 펼침) */}
           {hasChildren && (
             <div className="ml-8 md:ml-12 relative">
               <div className="absolute left-0 top-0 bottom-0 w-0.5 bg-gradient-to-b from-[#7DE2D1]/50 via-[#339989]/30 to-transparent"></div>
@@ -758,7 +847,7 @@ export default function VisualizePage() {
                 </div>
               </div>
 
-              {/* 코드 흐름 (모든 노드 펼침) - 개선된 레이아웃 */}
+              {/* 코드 흐름 - 왼쪽: mainFlow, 오른쪽: detailFunctions */}
               <div className="relative">
                 {/* 타임라인 시작 마커 */}
                 <div className="flex items-center gap-3 mb-6 pb-4 border-b border-[#2B2C28]">
@@ -769,11 +858,67 @@ export default function VisualizePage() {
                   </span>
                 </div>
 
-                {selectedEndpointData.children &&
-                selectedEndpointData.children.length > 0 ? (
+                {/* mainFlow와 detailFunctions가 모두 있는 경우 */}
+                {selectedEndpointData.mainFlow ||
+                selectedEndpointData.detailFunctions ? (
+                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                    {/* 왼쪽: mainFlow (큰 흐름) */}
+                    <div className="space-y-2">
+                      <div className="mb-4 pb-3 border-b border-[#2B2C28]">
+                        <h3 className="text-lg font-bold text-white flex items-center gap-2">
+                          <div className="w-2 h-2 rounded-full bg-[#339989]"></div>
+                          큰 흐름 (라우팅)
+                        </h3>
+                        <p className="text-xs text-slate-500 mt-1">
+                          app.mjs → router → controller
+                        </p>
+                      </div>
+                      {selectedEndpointData.mainFlow &&
+                      selectedEndpointData.mainFlow.length > 0 ? (
+                        <div className="relative pl-8">
+                          <div className="absolute left-0 top-0 bottom-0 w-0.5 bg-gradient-to-b from-[#339989] via-[#7DE2D1] to-transparent"></div>
+                          {selectedEndpointData.mainFlow.map((item, index) =>
+                            renderCodeCard(item, index, true)
+                          )}
+                        </div>
+                      ) : (
+                        <div className="text-center py-8 text-slate-500">
+                          <p>큰 흐름 정보가 없습니다.</p>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* 오른쪽: detailFunctions (세부 함수들) */}
+                    <div className="space-y-2">
+                      <div className="mb-4 pb-3 border-b border-[#2B2C28]">
+                        <h3 className="text-lg font-bold text-white flex items-center gap-2">
+                          <div className="w-2 h-2 rounded-full bg-[#7DE2D1]"></div>
+                          세부 함수들
+                        </h3>
+                        <p className="text-xs text-slate-500 mt-1">
+                          middleware, repository, helper functions
+                        </p>
+                      </div>
+                      {selectedEndpointData.detailFunctions &&
+                      selectedEndpointData.detailFunctions.length > 0 ? (
+                        <div className="space-y-4">
+                          {selectedEndpointData.detailFunctions.map(
+                            (item, index) => renderCodeCard(item, index, false)
+                          )}
+                        </div>
+                      ) : (
+                        <div className="text-center py-8 text-slate-500">
+                          <p>세부 함수 정보가 없습니다.</p>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                ) : selectedEndpointData.children &&
+                  selectedEndpointData.children.length > 0 ? (
+                  // 하위 호환성: 기존 children 형식 지원
                   <div className="space-y-2">
                     {renderCodeFlow(
-                      selectedEndpointData.children,
+                      selectedEndpointData.children as any,
                       0,
                       selectedEndpoint || ""
                     )}
@@ -790,16 +935,18 @@ export default function VisualizePage() {
                 )}
 
                 {/* 타임라인 종료 마커 */}
-                {selectedEndpointData.children &&
-                  selectedEndpointData.children.length > 0 && (
-                    <div className="flex items-center gap-3 mt-8 pt-4 border-t border-[#2B2C28]">
-                      <div className="w-3 h-3 rounded-full bg-gradient-to-br from-[#7DE2D1] to-[#339989] shadow-lg"></div>
-                      <div className="flex-1 h-0.5 bg-gradient-to-r from-transparent to-[#7DE2D1]"></div>
-                      <span className="text-xs text-slate-500 font-semibold uppercase tracking-wider">
-                        완료
-                      </span>
-                    </div>
-                  )}
+                {(selectedEndpointData.mainFlow ||
+                  selectedEndpointData.detailFunctions ||
+                  (selectedEndpointData.children &&
+                    selectedEndpointData.children.length > 0)) && (
+                  <div className="flex items-center gap-3 mt-8 pt-4 border-t border-[#2B2C28]">
+                    <div className="w-3 h-3 rounded-full bg-gradient-to-br from-[#7DE2D1] to-[#339989] shadow-lg"></div>
+                    <div className="flex-1 h-0.5 bg-gradient-to-r from-transparent to-[#7DE2D1]"></div>
+                    <span className="text-xs text-slate-500 font-semibold uppercase tracking-wider">
+                      완료
+                    </span>
+                  </div>
+                )}
               </div>
             </>
           ) : (
