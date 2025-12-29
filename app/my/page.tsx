@@ -367,8 +367,14 @@ export default function MyPage() {
               likeCount: s.likeCount ? Number(s.likeCount) : undefined,
               files: s.files ? (s.files as any[]) : undefined,
               postUserName: s.postUserName ? String(s.postUserName) : undefined,
-              postUserId: s.postUserId || s.postUserIdx ? Number(s.postUserId || s.postUserIdx) : undefined,
-              postUserIdx: s.postUserIdx || s.postUserId ? Number(s.postUserIdx || s.postUserId) : undefined,
+              postUserId:
+                s.postUserId || s.postUserIdx
+                  ? Number(s.postUserId || s.postUserIdx)
+                  : undefined,
+              postUserIdx:
+                s.postUserIdx || s.postUserId
+                  ? Number(s.postUserIdx || s.postUserId)
+                  : undefined,
               userIdx: s.userIdx ? Number(s.userIdx) : undefined,
             }))
           );
@@ -885,6 +891,26 @@ export default function MyPage() {
       const errorMessage =
         error instanceof Error ? error.message : "알림 삭제에 실패했습니다";
       alert(errorMessage);
+    }
+  };
+
+  // 알림 클릭 시 게시글로 이동
+  const handleNotificationClick = (notification: Noti) => {
+    // COMMENT, COMMENT_SELECTED, SCRAP 타입의 알림은 게시글로 이동
+    if (
+      notification.noti_type === "COMMENT" ||
+      notification.noti_type === "COMMENT_SELECTED" ||
+      notification.noti_type === "SCRAP"
+    ) {
+      const boardId = notification.noti_val;
+      if (boardId) {
+        // 게시판 페이지로 이동 (게시글 ID는 쿼리 파라미터로 전달)
+        router.push(`/posts?postId=${boardId}`);
+      }
+    }
+    // 읽지 않은 알림이면 읽음 처리
+    if (!notification.read_yn) {
+      markAsRead(notification.noti_id);
     }
   };
 
@@ -1446,7 +1472,8 @@ export default function MyPage() {
                   {notifications.map((notification) => (
                     <div
                       key={notification.noti_id}
-                      className={`bg-[#131515] border rounded-lg p-4 flex items-start gap-3 group ${
+                      onClick={() => handleNotificationClick(notification)}
+                      className={`bg-[#131515] border rounded-lg p-4 flex items-start gap-3 group cursor-pointer hover:bg-[#1a1a18] transition ${
                         notification.read_yn
                           ? "border-[#2B2C28]"
                           : "border-[#339989]/50"
@@ -1478,16 +1505,20 @@ export default function MyPage() {
                       <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition">
                         {!notification.read_yn && (
                           <button
-                            onClick={() => markAsRead(notification.noti_id)}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              markAsRead(notification.noti_id);
+                            }}
                             className="text-xs text-[#7DE2D1] hover:text-[#339989] whitespace-nowrap"
                           >
                             읽음
                           </button>
                         )}
                         <button
-                          onClick={() =>
-                            deleteNotification(notification.noti_id)
-                          }
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            deleteNotification(notification.noti_id);
+                          }}
                           className="p-1 hover:bg-[#2B2C28] rounded"
                         >
                           <X className="w-4 h-4 text-slate-400 hover:text-red-500" />
@@ -1860,8 +1891,10 @@ export default function MyPage() {
               <h2 className="text-xl font-bold text-white">게시글 상세</h2>
               <div className="flex items-center gap-2">
                 {currentUserId !== null &&
-                  (selectedScrapPost.postUserIdx || selectedScrapPost.postUserId) !== undefined &&
-                  (selectedScrapPost.postUserIdx || selectedScrapPost.postUserId) === currentUserId && (
+                  (selectedScrapPost.postUserIdx ||
+                    selectedScrapPost.postUserId) !== undefined &&
+                  (selectedScrapPost.postUserIdx ||
+                    selectedScrapPost.postUserId) === currentUserId && (
                     <>
                       <Button
                         onClick={() => editScrapPost(selectedScrapPost)}

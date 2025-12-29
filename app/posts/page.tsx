@@ -1,6 +1,7 @@
 "use client";
 import { useState, useEffect } from "react";
 import type React from "react";
+import { useSearchParams } from "next/navigation";
 import {
   Code2,
   Search,
@@ -71,6 +72,7 @@ interface FileAttachment {
 }
 
 export default function PostsPage() {
+  const searchParams = useSearchParams();
   const [activeTab, setActiveTab] = useState<"community" | "question">(
     "community"
   );
@@ -139,6 +141,34 @@ export default function PostsPage() {
     };
     fetchCurrentUserAndScraps();
   }, []);
+
+  // URL 쿼리 파라미터에서 postId를 읽어서 해당 게시글 자동으로 열기
+  useEffect(() => {
+    const postIdParam = searchParams.get("postId");
+    if (postIdParam && !loading) {
+      const postId = parseInt(postIdParam);
+      if (!isNaN(postId)) {
+        // 게시글 목록에서 해당 게시글 찾기
+        const post = posts.find((p) => p.boardId === postId);
+        if (post) {
+          viewPost(post);
+        } else {
+          // 목록에 없으면 직접 조회
+          const loadPost = async () => {
+            try {
+              const postDetail = await postApi.getPost(postId);
+              viewPost(postDetail.post);
+            } catch (err) {
+              console.error("게시글 조회 실패:", err);
+            }
+          };
+          loadPost();
+        }
+        // URL에서 postId 파라미터 제거
+        window.history.replaceState({}, "", "/posts");
+      }
+    }
+  }, [searchParams, posts, loading]);
 
   // 게시글 목록 조회
   const fetchPosts = async () => {
