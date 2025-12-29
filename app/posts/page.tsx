@@ -729,9 +729,12 @@ export default function PostsPage() {
                       </p>
                     </div>
 
-                    <div>
-                      <p className="text-sm font-medium text-white mb-2">
+                    <div className="flex items-center gap-4 text-sm text-slate-400">
+                      <p className="font-medium text-white">
                         좋아요 {post.likeCount || 0}개
+                      </p>
+                      <p className="font-medium text-white">
+                        댓글 {commentCounts.get(post.boardId) ?? 0}개
                       </p>
                     </div>
 
