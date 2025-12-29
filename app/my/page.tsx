@@ -367,7 +367,8 @@ export default function MyPage() {
               likeCount: s.likeCount ? Number(s.likeCount) : undefined,
               files: s.files ? (s.files as any[]) : undefined,
               postUserName: s.postUserName ? String(s.postUserName) : undefined,
-              postUserId: s.postUserId ? Number(s.postUserId) : undefined,
+              postUserId: s.postUserId || s.postUserIdx ? Number(s.postUserId || s.postUserIdx) : undefined,
+              postUserIdx: s.postUserIdx || s.postUserId ? Number(s.postUserIdx || s.postUserId) : undefined,
               userIdx: s.userIdx ? Number(s.userIdx) : undefined,
             }))
           );
@@ -1575,10 +1576,12 @@ export default function MyPage() {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   {scraps.map((scrap) => {
                     const boardId = scrap.boardId || scrap.board_id;
+                    // 게시글 작성자가 현재 사용자인지 확인 (스크랩한 사람이 아니라 게시글 작성자)
+                    const postAuthorId = scrap.postUserIdx || scrap.postUserId;
                     const isMyPost =
                       currentUserId !== null &&
-                      (scrap.userIdx === currentUserId ||
-                        scrap.postUserId === currentUserId);
+                      postAuthorId !== undefined &&
+                      postAuthorId === currentUserId;
 
                     return (
                       <div
@@ -1857,8 +1860,8 @@ export default function MyPage() {
               <h2 className="text-xl font-bold text-white">게시글 상세</h2>
               <div className="flex items-center gap-2">
                 {currentUserId !== null &&
-                  (selectedScrapPost.userIdx === currentUserId ||
-                    selectedScrapPost.postUserId === currentUserId) && (
+                  (selectedScrapPost.postUserIdx || selectedScrapPost.postUserId) !== undefined &&
+                  (selectedScrapPost.postUserIdx || selectedScrapPost.postUserId) === currentUserId && (
                     <>
                       <Button
                         onClick={() => editScrapPost(selectedScrapPost)}
