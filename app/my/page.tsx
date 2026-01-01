@@ -79,6 +79,7 @@ interface Scrap {
   files?: any[];
   postUserName?: string;
   postUserId?: number;
+  postUserIdx?: number;
   userIdx?: number;
 }
 

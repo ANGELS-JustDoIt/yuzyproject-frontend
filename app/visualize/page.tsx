@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import React, { useState, useEffect } from "react";
 import {
   Code2,
   FileCode,
@@ -206,7 +206,7 @@ export default function VisualizePage() {
   };
 
   // VS Code 스타일 syntax highlighting 함수
-  const highlightCode = (code: string): JSX.Element[] => {
+  const highlightCode = (code: string): React.ReactElement[] => {
     const lines = code.split("\n");
     return lines.map((line, lineIndex) => {
       // 빈 줄 처리

@@ -117,8 +117,10 @@ export default function DashboardPage() {
                 <div className="relative">
                   <input
                     type="file"
-                    webkitdirectory
-                    directory
+                    {...({
+                      webkitdirectory: true,
+                      directory: true,
+                    } as React.InputHTMLAttributes<HTMLInputElement>)}
                     onChange={handleFolderUpload}
                     disabled={isUploading}
                     className="hidden"
