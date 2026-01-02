@@ -5,7 +5,7 @@ import Header from "@/components/Header";
 import { Button } from "@/components/ui/button";
 import { Upload, FileImage, Loader2, CheckCircle2, XCircle } from "lucide-react";
 
-const OCR_API_URL = "http://localhost:8000";
+const OCR_API_URL = process.env.NEXT_PUBLIC_AI_SERVER_URL || "http://localhost:8000";
 
 export default function CapturePage() {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);

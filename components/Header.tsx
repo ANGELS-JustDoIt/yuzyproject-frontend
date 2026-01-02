@@ -76,7 +76,8 @@ export default function Header() {
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 5 * 60 * 1000); // 5분
       
-      const response = await fetch("http://localhost:8000/capture", {
+      const aiServerUrl = process.env.NEXT_PUBLIC_AI_SERVER_URL || "http://localhost:8000";
+      const response = await fetch(`${aiServerUrl}/capture`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
