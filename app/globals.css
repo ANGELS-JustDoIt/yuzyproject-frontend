@@ -308,3 +308,13 @@
     opacity: 1;
   }
 }
+
+/* 스크롤바 숨기기 (스크롤 기능은 유지) */
+.hide-scrollbar {
+  -ms-overflow-style: none; /* IE and Edge */
+  scrollbar-width: none; /* Firefox */
+}
+
+.hide-scrollbar::-webkit-scrollbar {
+  display: none; /* Chrome, Safari, Opera */
+}

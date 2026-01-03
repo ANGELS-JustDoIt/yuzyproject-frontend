@@ -1164,7 +1164,7 @@ export default function PostsPage() {
           }}
         >
           <div
-            className="bg-[#1a1a18] border border-[#2B2C28] rounded-lg w-full max-w-4xl max-h-[90vh] overflow-y-auto"
+            className="bg-[#1a1a18] border border-[#2B2C28] rounded-lg w-full max-w-4xl max-h-[90vh] overflow-y-auto hide-scrollbar"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="p-6 border-b border-[#2B2C28] flex items-center justify-between sticky top-0 bg-[#1a1a18] z-10">

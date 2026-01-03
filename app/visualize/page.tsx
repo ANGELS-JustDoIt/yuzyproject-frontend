@@ -612,7 +612,7 @@ export default function VisualizePage() {
                       </button>
                     </div>
                     <div className="relative overflow-hidden rounded">
-                      <div className="overflow-x-auto max-h-96 overflow-y-auto">
+                      <div className="overflow-x-auto max-h-96 overflow-y-auto hide-scrollbar">
                         <pre className="text-sm text-slate-200 font-mono whitespace-pre break-words leading-relaxed m-0">
                           <code className="block">
                             {highlightCode(child.code)}
@@ -694,7 +694,7 @@ export default function VisualizePage() {
       <div className="flex flex-col lg:flex-row flex-1 pt-20">
         {/* 왼쪽 사이드바: API 목록 (개선된 디자인) */}
         <aside
-          className="w-full lg:w-72 xl:w-80 border-r-2 border-[#2B2C28] overflow-y-auto transition-all block flex-shrink-0"
+          className="w-full lg:w-72 xl:w-80 border-r-2 border-[#2B2C28] overflow-y-auto hide-scrollbar transition-all block flex-shrink-0"
           style={{
             backgroundColor: "#1a1a18",
             maxHeight: "calc(100vh - 80px)",
@@ -808,7 +808,7 @@ export default function VisualizePage() {
 
         {/* 가운데 영역: 코드 전체와 흐름 */}
         <main
-          className="flex-1 p-6 md:p-8 lg:p-10 overflow-y-auto"
+          className="flex-1 p-6 md:p-8 lg:p-10 overflow-y-auto hide-scrollbar"
           style={{ maxHeight: "calc(100vh - 80px)" }}
         >
           {selectedEndpointData ? (

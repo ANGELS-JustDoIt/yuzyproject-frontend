@@ -464,7 +464,7 @@ export default function VisualizeSamplePage() {
       <div className="flex flex-col lg:flex-row flex-1 pt-20">
         {/* 좌측 사이드바: 카테고리 및 엔드포인트 목록 */}
         <aside
-          className="w-full lg:w-80 border-r border-[#2B2C28] overflow-y-auto transition-all block"
+          className="w-full lg:w-80 border-r border-[#2B2C28] overflow-y-auto hide-scrollbar transition-all block"
           style={{
             backgroundColor: "#1a1a18",
             maxHeight: "calc(100vh - 80px)",
@@ -540,7 +540,7 @@ export default function VisualizeSamplePage() {
 
         {/* 중앙 영역: 함수 호출 흐름 트리 */}
         <main
-          className="flex-1 p-4 md:p-6 overflow-y-auto"
+          className="flex-1 p-4 md:p-6 overflow-y-auto hide-scrollbar"
           style={{ maxHeight: "calc(100vh - 64px)" }}
         >
           {selectedEndpointData ? (
@@ -610,7 +610,7 @@ export default function VisualizeSamplePage() {
 
         {/* 우측 패널: 선택된 함수 상세 정보 */}
         <aside
-          className={`w-full lg:w-96 border-l border-[#2B2C28] p-4 md:p-6 overflow-y-auto transition-all ${
+          className={`w-full lg:w-96 border-l border-[#2B2C28] p-4 md:p-6 overflow-y-auto hide-scrollbar transition-all ${
             selectedFunction ? "block" : "hidden lg:block"
           }`}
           style={{
