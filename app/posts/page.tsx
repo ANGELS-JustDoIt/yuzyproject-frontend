@@ -679,7 +679,7 @@ export default function PostsPage() {
       </div>
 
       {/* Main Content */}
-      <main className="max-w-7xl mx-auto px-6 py-8 pt-28">
+      <main className="max-w-7xl mx-auto px-6 py-8 pt-36">
         {loading && (
           <div className="flex items-center justify-center py-20">
             <Loader2 className="w-8 h-8 text-[#7DE2D1] animate-spin" />
