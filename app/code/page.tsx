@@ -792,122 +792,147 @@ export default function CodePage() {
       )}
 
       {/* Main Content */}
-      <div className="pt-20 px-6 pb-12">
+      <div className="pt-[88px] px-6 min-h-[calc(100vh-88px)] overflow-y-auto">
         <div className="max-w-7xl mx-auto">
-          <div className="min-h-[calc(100vh-200px)] flex items-center justify-center">
-            <div className="w-full max-w-2xl animate-pulse-slow">
-              <div className="text-center mb-12">
-                <h1 className="text-5xl font-bold text-white mb-4 animate-bounce-slow">
-                  프로젝트 폴더를
-                  <br />
-                  <span
-                    className="inline-block animate-pulse-glow"
-                    style={{ color: "#7DE2D1" }}
-                  >
-                    분석해보세요
-                  </span>
-                </h1>
-                <p className="text-slate-400 text-lg font-light animate-fade-in-slow">
-                  코드 폴더를 업로드하면 함수 호출 흐름과 API 구조를 한눈에 볼
-                  수 있습니다
-                </p>
+          <div className="py-2 flex items-center min-h-[calc((100vh-88px)*0.8)]">
+            <div className="w-full grid lg:grid-cols-2 gap-12 items-center">
+              {/* 왼쪽: 설명 */}
+              <div className="flex flex-col justify-center space-y-4 min-h-[500px]">
+                <div>
+                  <div className="inline-block mb-3 px-3 py-1 bg-[#339989]/10 border border-[#339989]/30 rounded-full">
+                    <span className="text-[#7DE2D1] text-xs font-bold uppercase tracking-wider">
+                      Code Analysis
+                    </span>
+                  </div>
+                  <h1 className="text-4xl font-bold text-white mb-3 animate-bounce-slow leading-tight">
+                    Node.js 백엔드
+                    <br />
+                    <span
+                      className="inline-block animate-pulse-glow"
+                      style={{ color: "#7DE2D1" }}
+                    >
+                      코드 분석
+                    </span>
+                  </h1>
+                  <p className="text-lg text-slate-300 font-medium mb-5 leading-relaxed">
+                    백엔드 코드를 업로드하면
+                    <br />
+                    AI가 자동으로 분석해 알려드립니다
+                  </p>
+                </div>
+
+                {/* 무엇을 분석하는지 */}
+                <div className="space-y-2">
+                  <h2 className="text-base font-semibold text-white mb-3">
+                    분석 내용
+                  </h2>
+                  <div className="space-y-2">
+                    {[
+                      {
+                        icon: Network,
+                        title: "API 엔드포인트",
+                        desc: "모든 API 경로와 메서드를 자동 추출",
+                      },
+                      {
+                        icon: Code2,
+                        title: "함수 호출 관계",
+                        desc: "함수 간의 호출 흐름과 의존성 분석",
+                      },
+                      {
+                        icon: FileJson,
+                        title: "데이터 구조",
+                        desc: "요청/응답 데이터 구조와 흐름 파악",
+                      },
+                    ].map((item, i) => {
+                      const Icon = item.icon;
+                      return (
+                        <div
+                          key={i}
+                          className="p-3 rounded-lg border border-[#2B2C28]/60 glass-card hover:border-[#339989]/40 transition-all"
+                          style={{ backgroundColor: "#1a1a18/50" }}
+                        >
+                          <div className="flex items-start gap-3">
+                            <div className="w-9 h-9 rounded-lg bg-[#339989]/15 border border-[#339989]/30 flex items-center justify-center flex-shrink-0">
+                              <Icon
+                                className="w-4 h-4"
+                                style={{ color: "#7DE2D1" }}
+                              />
+                            </div>
+                            <div>
+                              <h3 className="text-white font-semibold mb-0.5 text-sm">
+                                {item.title}
+                              </h3>
+                              <p className="text-slate-400 text-xs">{item.desc}</p>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
               </div>
 
-              {/* Upload Box */}
-              <div className="relative animate-scale-breathe">
-                <input
-                  ref={fileInputRef}
-                  type="file"
-                  {...({ webkitdirectory: "true" } as any)}
-                  {...({ directory: "true" } as any)}
-                  onChange={handleFolderUpload}
-                  disabled={isUploading}
-                  className="hidden"
-                  id="folder-upload"
-                />
-                <label htmlFor="folder-upload" className="block cursor-pointer">
-                  <div
-                    className="border-2 border-dashed border-[#339989]/50 rounded-xl p-16 text-center hover:border-[#339989] transition"
-                    style={{ backgroundColor: "#1a1a18/50" }}
-                  >
-                    <Upload
-                      className="w-16 h-16 mx-auto mb-4"
-                      style={{ color: "#7DE2D1" }}
+              {/* 오른쪽: 업로드 박스 */}
+              <div className="flex items-stretch">
+                <div className="w-full animate-pulse-slow">
+                  <div className="relative animate-scale-breathe">
+                    <input
+                      ref={fileInputRef}
+                      type="file"
+                      {...({ webkitdirectory: "true" } as any)}
+                      {...({ directory: "true" } as any)}
+                      onChange={handleFolderUpload}
+                      disabled={isUploading}
+                      className="hidden"
+                      id="folder-upload"
                     />
-                    <h3 className="text-2xl font-bold text-white mb-2">
-                      폴더를 여기에 드래그하거나 클릭하세요
-                    </h3>
-                    <p className="text-slate-400 mb-6">
-                      JavaScript, Python, Java 등 다양한 언어의 프로젝트를
-                      지원합니다
-                    </p>
-                    {isUploading && (
-                      <div className="flex flex-col items-center justify-center gap-3">
-                        <div className="flex items-center gap-3">
-                          <div
-                            className="w-2 h-2 rounded-full animate-pulse"
-                            style={{ backgroundColor: "#7DE2D1" }}
-                          ></div>
-                          <span className="text-slate-400 text-sm font-medium">
-                            {progress || "분석 중입니다..."}
-                          </span>
-                        </div>
-                        {progress && (
-                          <div className="text-xs text-slate-500">
-                            완료되면 자동으로 다운로드됩니다
+                    <label htmlFor="folder-upload" className="block cursor-pointer">
+                      <div
+                        className="border-2 border-dashed border-[#339989]/50 rounded-xl p-12 text-center hover:border-[#339989] transition flex flex-col items-center justify-center min-h-[500px]"
+                        style={{ backgroundColor: "#1a1a18/50" }}
+                      >
+                        <Upload
+                          className="w-20 h-20 mx-auto mb-6"
+                          style={{ color: "#7DE2D1" }}
+                        />
+                        <h3 className="text-2xl font-bold text-white mb-3">
+                          Node.js 백엔드 폴더를 업로드하세요
+                        </h3>
+                        <p className="text-slate-400 mb-8 text-base max-w-md mx-auto">
+                          백엔드 프로젝트 폴더를 업로드하면
+                          <br />
+                          AI가 코드 구조를 분석하여 알려드립니다
+                        </p>
+                        {isUploading && (
+                          <div className="flex flex-col items-center justify-center gap-3">
+                            <div className="flex items-center gap-3">
+                              <div
+                                className="w-2 h-2 rounded-full animate-pulse"
+                                style={{ backgroundColor: "#7DE2D1" }}
+                              ></div>
+                              <span className="text-slate-400 text-sm font-medium">
+                                {progress || "분석 중입니다..."}
+                              </span>
+                            </div>
+                            {progress && (
+                              <div className="text-xs text-slate-500">
+                                완료되면 자동으로 다운로드됩니다
+                              </div>
+                            )}
+                          </div>
+                        )}
+                        {!isUploading && (
+                          <div className="flex items-center justify-center gap-2 text-slate-500 text-sm mt-4">
+                            <Download className="w-4 h-4" />
+                            <span>
+                              분석 후 합쳐진 파일이 자동으로 다운로드됩니다
+                            </span>
                           </div>
                         )}
                       </div>
-                    )}
-                    {!isUploading && (
-                      <div className="flex items-center justify-center gap-2 text-slate-500 text-sm mt-4">
-                        <Download className="w-4 h-4" />
-                        <span>
-                          분석 후 합쳐진 파일이 자동으로 다운로드됩니다
-                        </span>
-                      </div>
-                    )}
+                    </label>
                   </div>
-                </label>
-              </div>
-
-              {/* Info */}
-              <div className="grid grid-cols-3 gap-4 mt-12">
-                {[
-                  {
-                    icon: Code2,
-                    label: "지원 언어",
-                    value: "JavaScript, Python, Java",
-                  },
-                  {
-                    icon: Network,
-                    label: "분석 항목",
-                    value: "함수, API, 데이터 흐름",
-                  },
-                  {
-                    icon: FileJson,
-                    label: "지원 포맷",
-                    value: ".js, .py, .java 등",
-                  },
-                ].map((item, i) => {
-                  const Icon = item.icon;
-                  return (
-                    <div
-                      key={i}
-                      className="p-4 rounded-lg border border-[#2B2C28]"
-                      style={{ backgroundColor: "#1a1a18/50" }}
-                    >
-                      <Icon
-                        className="w-6 h-6 mb-2"
-                        style={{ color: "#7DE2D1" }}
-                      />
-                      <p className="text-slate-400 text-xs font-semibold uppercase mb-1">
-                        {item.label}
-                      </p>
-                      <p className="text-white text-sm">{item.value}</p>
-                    </div>
-                  );
-                })}
+                </div>
               </div>
             </div>
           </div>
