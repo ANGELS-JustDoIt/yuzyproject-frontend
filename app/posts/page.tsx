@@ -754,7 +754,7 @@ export default function PostsPage() {
                         </span>{" "}
                         {post.title}
                       </p>
-                      <p className="text-sm text-slate-400 line-clamp-2">
+                      <p className="text-sm text-slate-400 line-clamp-2 whitespace-pre-wrap">
                         {post.content}
                       </p>
                     </div>
@@ -862,7 +862,7 @@ export default function PostsPage() {
                         )}
                       </div>
 
-                      <p className="text-sm text-slate-400 mb-4 line-clamp-2">
+                      <p className="text-sm text-slate-400 mb-4 line-clamp-2 whitespace-pre-wrap">
                         {post.content}
                       </p>
 
@@ -1392,7 +1392,7 @@ export default function PostsPage() {
                                 className="w-full bg-[#131515] border border-[#2B2C28] rounded-lg px-4 py-2 text-white resize-none focus:outline-none focus:border-[#339989] transition mb-2"
                               />
                             ) : (
-                              <p className="text-sm text-slate-300">
+                              <p className="text-sm text-slate-300 whitespace-pre-wrap">
                                 {comment.reply || comment.content}
                               </p>
                             )}
