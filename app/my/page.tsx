@@ -1145,11 +1145,19 @@ export default function MyPage() {
       {/* 알림 버튼 (my 페이지 전용) */}
       <div className="fixed top-20 right-6 z-40">
         <button
-          onClick={() =>
-            setActiveSection(
-              activeSection === "notifications" ? null : "notifications"
-            )
-          }
+          onClick={() => {
+            const newSection = activeSection === "notifications" ? null : "notifications";
+            setActiveSection(newSection);
+            // 알림 섹션으로 스크롤 이동
+            if (newSection === "notifications") {
+              setTimeout(() => {
+                const notificationsSection = document.getElementById("notifications-section");
+                if (notificationsSection) {
+                  notificationsSection.scrollIntoView({ behavior: "smooth", block: "start" });
+                }
+              }, 100); // 섹션이 렌더링된 후 스크롤
+            }
+          }}
           className="relative h-9 w-9 flex items-center justify-center rounded-lg hover:bg-[#2B2C28] transition bg-[#1a1a18] border border-[#2B2C28] shadow-lg"
         >
           <Bell className="w-5 h-5 text-slate-400" />
@@ -1335,11 +1343,19 @@ export default function MyPage() {
                 </button>
 
                 <button
-                  onClick={() =>
-                    setActiveSection(
-                      activeSection === "notifications" ? null : "notifications"
-                    )
-                  }
+                  onClick={() => {
+                    const newSection = activeSection === "notifications" ? null : "notifications";
+                    setActiveSection(newSection);
+                    // 알림 섹션으로 스크롤 이동
+                    if (newSection === "notifications") {
+                      setTimeout(() => {
+                        const notificationsSection = document.getElementById("notifications-section");
+                        if (notificationsSection) {
+                          notificationsSection.scrollIntoView({ behavior: "smooth", block: "start" });
+                        }
+                      }, 100); // 섹션이 렌더링된 후 스크롤
+                    }
+                  }}
                   className="bg-[#1a1a18] border border-[#2B2C28] rounded-lg p-6 hover:border-[#339989] transition text-left group relative"
                 >
                   <Bell className="w-8 h-8 text-[#339989] mb-3 group-hover:text-[#7DE2D1] transition" />
@@ -1479,7 +1495,7 @@ export default function MyPage() {
 
             {/* 알림 섹션 */}
             {activeSection === "notifications" && (
-              <div className="bg-[#1a1a18] border border-[#2B2C28] rounded-lg p-6 mb-8">
+              <div id="notifications-section" className="bg-[#1a1a18] border border-[#2B2C28] rounded-lg p-6 mb-8">
                 <h2 className="text-xl font-bold text-white mb-4">알림</h2>
                 <div className="space-y-3">
                   {notifications.map((notification) => (
