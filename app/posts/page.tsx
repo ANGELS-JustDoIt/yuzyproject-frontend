@@ -1447,11 +1447,12 @@ export default function PostsPage() {
                                   "ko-KR"
                                 )}
                               </span>
-                              {comment.isSelected && (
-                                <span className="px-2 py-0.5 bg-[#339989] text-white text-xs rounded">
-                                  채택됨
-                                </span>
-                              )}
+                              {selectedPost.type === "question" &&
+                                !!comment.isSelected && (
+                                  <span className="px-2 py-0.5 bg-[#339989] text-white text-xs rounded">
+                                    채택됨
+                                  </span>
+                                )}
                               {isMyComment(comment) && (
                                 <div className="flex items-center gap-2 ml-auto">
                                   {editingCommentId === comment.replyId ? (
