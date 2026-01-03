@@ -80,6 +80,7 @@ export default function PostsPage() {
     "community"
   );
   const [searchQuery, setSearchQuery] = useState("");
+  const [searchInput, setSearchInput] = useState("");
   const [likedPosts, setLikedPosts] = useState<Set<number>>(new Set());
   const [savedPosts, setSavedPosts] = useState<Set<number>>(new Set());
   const [postImages, setPostImages] = useState<Map<number, string>>(new Map()); // 게시글 ID -> 메인 이미지 URL
@@ -298,6 +299,18 @@ export default function PostsPage() {
   useEffect(() => {
     fetchPosts();
   }, [activeTab, currentPage, searchQuery]);
+
+  const handleSearch = () => {
+    const trimmedQuery = searchInput.trim();
+    setSearchQuery(trimmedQuery);
+    setCurrentPage(1);
+  };
+
+  const handleSearchKeyPress = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === "Enter") {
+      handleSearch();
+    }
+  };
 
   const handleTabChange = (tab: "community" | "question") => {
     setActiveTab(tab);
@@ -632,18 +645,39 @@ export default function PostsPage() {
             </Button>
           </div>
 
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
-            <input
-              type="text"
-              placeholder="검색..."
-              value={searchQuery}
-              onChange={(e) => {
-                setSearchQuery(e.target.value);
-                setCurrentPage(1);
-              }}
-              className="w-64 h-9 pl-10 pr-4 bg-[#2B2C28] border border-[#2B2C28] rounded-lg text-sm text-white placeholder-slate-500 focus:outline-none focus:border-[#339989] transition"
-            />
+          <div className="relative flex items-center gap-2">
+            <div className="relative flex-1">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
+              <input
+                type="text"
+                placeholder="검색..."
+                value={searchInput}
+                onChange={(e) => {
+                  setSearchInput(e.target.value);
+                }}
+                onKeyPress={handleSearchKeyPress}
+                className="w-64 h-9 pl-10 pr-4 bg-[#2B2C28] border border-[#2B2C28] rounded-lg text-sm text-white placeholder-slate-500 focus:outline-none focus:border-[#339989] transition"
+              />
+            </div>
+            <Button
+              onClick={handleSearch}
+              className="h-9 px-4 bg-[#339989] text-white hover:bg-[#2d8578] transition"
+            >
+              검색
+            </Button>
+            {searchQuery && (
+              <Button
+                onClick={() => {
+                  setSearchInput("");
+                  setSearchQuery("");
+                  setCurrentPage(1);
+                }}
+                variant="ghost"
+                className="h-9 px-3 text-slate-400 hover:text-white hover:bg-[#2B2C28] transition"
+              >
+                <X className="w-4 h-4" />
+              </Button>
+            )}
           </div>
         </div>
       </div>
