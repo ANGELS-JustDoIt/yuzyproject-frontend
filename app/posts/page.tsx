@@ -1249,11 +1249,17 @@ export default function PostsPage() {
                       <Eye className="w-4 h-4" />
                       <span>{selectedPost.views} 조회</span>
                     </div>
-                    {selectedPost.isSolved && (
+                    {selectedPost.type === "question" && (
                       <>
                         <span>•</span>
-                        <span className="px-2 py-1 bg-[#339989] text-white text-xs rounded">
-                          해결됨
+                        <span
+                          className={`px-2 py-1 text-white text-xs rounded ${
+                            selectedPost.isSolved
+                              ? "bg-[#339989]"
+                              : "bg-slate-500"
+                          }`}
+                        >
+                          {selectedPost.isSolved ? "해결됨" : "미해결"}
                         </span>
                       </>
                     )}
