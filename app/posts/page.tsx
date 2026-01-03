@@ -609,18 +609,8 @@ export default function PostsPage() {
     <div className="min-h-screen" style={{ backgroundColor: "#131515" }}>
       <Header />
 
-      {/* 글쓰기 버튼 (posts 페이지 전용) */}
-      <div className="fixed top-20 right-6 z-40">
-        <Button
-          onClick={() => createPost(activeTab)}
-          className="h-9 px-4 bg-[#339989] text-white text-sm font-medium rounded-lg hover:bg-[#7DE2D1] transition shadow-lg"
-        >
-          글쓰기
-        </Button>
-      </div>
-
-      {/* Tab Navigation */}
-      <div className="pt-20 border-b border-[#2B2C28]">
+      {/* Tab Navigation - Fixed */}
+      <div className="fixed top-16 left-0 right-0 z-40 border-b border-[#2B2C28] bg-[#131515]/95 backdrop-blur-sm">
         <div className="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
           <div className="flex gap-1">
             <Button
@@ -678,12 +668,18 @@ export default function PostsPage() {
                 <X className="w-4 h-4" />
               </Button>
             )}
+            <Button
+              onClick={() => createPost(activeTab)}
+              className="h-9 px-4 bg-[#339989] text-white text-sm font-medium rounded-lg hover:bg-[#7DE2D1] transition"
+            >
+              글쓰기
+            </Button>
           </div>
         </div>
       </div>
 
       {/* Main Content */}
-      <main className="max-w-7xl mx-auto px-6 py-8">
+      <main className="max-w-7xl mx-auto px-6 py-8 pt-28">
         {loading && (
           <div className="flex items-center justify-center py-20">
             <Loader2 className="w-8 h-8 text-[#7DE2D1] animate-spin" />
