@@ -21,7 +21,8 @@ import {
   Loader2,
 } from "lucide-react";
 import Header from "@/components/Header";
-import { postApi, myApi } from "@/lib/api";
+import { postApi, myApi, getToken } from "@/lib/api";
+import { useRequireAuth } from "@/lib/useAuth";
 import { Button } from "@/components/ui/button";
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080";
@@ -196,6 +197,14 @@ const mockNotifications: Noti[] = [
 ];
 
 export default function MyPage() {
+  // 인증 체크 - 토큰이 없으면 로그인 페이지로 즉시 리다이렉트
+  useRequireAuth();
+  
+  // 클라이언트 사이드에서 즉시 체크하여 페이지가 보이는 것을 방지
+  if (typeof window !== "undefined" && !getToken()) {
+    return null; // 리다이렉트 중이므로 아무것도 렌더링하지 않음
+  }
+  
   const router = useRouter();
   const [member, setMember] = useState<Member | null>(null);
   const [grassData, setGrassData] = useState<Grass[]>([]);
