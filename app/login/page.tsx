@@ -55,7 +55,7 @@ export default function LoginPage() {
             유지프로젝트에 로그인
           </h1>
           <p className="text-slate-400 font-light">
-            국비수업을 더 똑똑하게 학습하세요
+            류지프로젝트 수업을 더 효율적으로 학습하세요
           </p>
         </div>
 
