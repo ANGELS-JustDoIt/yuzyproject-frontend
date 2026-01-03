@@ -214,7 +214,7 @@ export default function MyPage() {
   >(null);
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [schedules, setSchedules] = useState<Schedule[]>([]);
-  const [selectedYear, setSelectedYear] = useState(2025);
+  const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
 
   const [editingSchedule, setEditingSchedule] = useState<Schedule | null>(null);
   const [showScheduleModal, setShowScheduleModal] = useState(false);
@@ -520,16 +520,19 @@ export default function MyPage() {
     return "#7DE2D1"; // 가장 밝은 색상 유지
   };
 
-  // 잔디 그래프 데이터 생성 (2025년 1월 1일부터 12월 31일까지)
-  const targetYear = 2025;
-  const startDate = new Date(targetYear, 0, 1); // 2025년 1월 1일
-  const endDate = new Date(targetYear, 11, 31); // 2025년 12월 31일
+  // 잔디 그래프 데이터 생성 (selectedYear년 1월 1일부터 12월 31일까지)
+  const targetYear = selectedYear;
+  const startDate = new Date(targetYear, 0, 1); // selectedYear년 1월 1일
+  const endDate = new Date(targetYear, 11, 31); // selectedYear년 12월 31일
 
   // 1월 1일이 무슨 요일인지 확인 (0=일요일, 1=월요일, ...)
   const startDayOfWeek = startDate.getDay();
 
-  // 전체 일수 계산 (2025년은 평년이므로 365일)
-  const totalDays = 365;
+  // 전체 일수 계산 (윤년 여부 확인)
+  const isLeapYear = (year: number) => {
+    return (year % 4 === 0 && year % 100 !== 0) || (year % 400 === 0);
+  };
+  const totalDays = isLeapYear(targetYear) ? 366 : 365;
 
   // 주 수 계산 (첫 주의 시작 요일 고려)
   const weeks = Math.ceil((totalDays + startDayOfWeek) / 7);
@@ -550,7 +553,7 @@ export default function MyPage() {
       const dayOfMonth = String(date.getDate()).padStart(2, "0");
       const dateString = `${year}-${month}-${dayOfMonth}`;
 
-      // 날짜가 2025년인지 확인
+      // 날짜가 selectedYear인지 확인
       if (date.getFullYear() !== targetYear) {
         return null;
       }
