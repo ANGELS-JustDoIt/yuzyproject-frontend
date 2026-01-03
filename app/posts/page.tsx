@@ -1152,8 +1152,21 @@ export default function PostsPage() {
 
       {/* 상세보기 모달 */}
       {showDetailModal && selectedPost && (
-        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
-          <div className="bg-[#1a1a18] border border-[#2B2C28] rounded-lg w-full max-w-4xl max-h-[90vh] overflow-y-auto">
+        <div
+          className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4"
+          onClick={() => {
+            setShowDetailModal(false);
+            setSelectedPost(null);
+            setSelectedPostFiles([]);
+            setSelectedPostComments([]);
+            setLoadingComments(false);
+            setCommentsError(null);
+          }}
+        >
+          <div
+            className="bg-[#1a1a18] border border-[#2B2C28] rounded-lg w-full max-w-4xl max-h-[90vh] overflow-y-auto"
+            onClick={(e) => e.stopPropagation()}
+          >
             <div className="p-6 border-b border-[#2B2C28] flex items-center justify-between sticky top-0 bg-[#1a1a18] z-10">
               <h2 className="text-xl font-bold text-white">게시글 상세</h2>
               <div className="flex items-center gap-2">
