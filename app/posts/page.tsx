@@ -16,11 +16,14 @@ import {
   ChevronLeft,
   ChevronRight,
   Loader2,
+  Edit,
+  Trash2,
 } from "lucide-react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import Header from "@/components/Header";
 import { postApi, myApi } from "@/lib/api";
+import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080";
 
@@ -720,14 +723,53 @@ export default function PostsPage() {
                         </p>
                       </div>
                     </div>
-                    <button
-                      className="text-slate-400 hover:text-white"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                      }}
-                    >
-                      <MoreHorizontal className="w-5 h-5" />
-                    </button>
+                    {currentUserId !== null &&
+                      (post.userIdx === currentUserId ||
+                        post.userId === currentUserId) && (
+                        <DropdownMenu.Root>
+                          <DropdownMenu.Trigger asChild>
+                            <button
+                              className="text-slate-400 hover:text-white transition"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                              }}
+                            >
+                              <MoreHorizontal className="w-5 h-5" />
+                            </button>
+                          </DropdownMenu.Trigger>
+                          <DropdownMenu.Portal>
+                            <DropdownMenu.Content
+                              className="min-w-[120px] bg-[#2B2C28] border border-[#339989]/30 rounded-lg p-1 shadow-lg z-50"
+                              align="end"
+                              sideOffset={5}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                              }}
+                            >
+                              <DropdownMenu.Item
+                                className="flex items-center gap-2 px-3 py-2 text-sm text-white rounded hover:bg-[#339989]/20 cursor-pointer outline-none"
+                                onSelect={(e) => {
+                                  e.preventDefault();
+                                  editPost(post);
+                                }}
+                              >
+                                <Edit className="w-4 h-4" />
+                                수정
+                              </DropdownMenu.Item>
+                              <DropdownMenu.Item
+                                className="flex items-center gap-2 px-3 py-2 text-sm text-red-400 rounded hover:bg-red-500/20 cursor-pointer outline-none"
+                                onSelect={(e) => {
+                                  e.preventDefault();
+                                  deletePost(post.boardId);
+                                }}
+                              >
+                                <Trash2 className="w-4 h-4" />
+                                삭제
+                              </DropdownMenu.Item>
+                            </DropdownMenu.Content>
+                          </DropdownMenu.Portal>
+                        </DropdownMenu.Root>
+                      )}
                   </div>
 
                   {/* Post Image */}
@@ -744,14 +786,7 @@ export default function PostsPage() {
                   {/* Post Content */}
                   <div className="p-4 space-y-3">
                     <div>
-                      <p className="text-sm text-white mb-1">
-                        <span className="font-medium">
-                          {post.name ||
-                            post.userName ||
-                            (typeof post.userId === "number"
-                              ? `User ${post.userId}`
-                              : post.userId)}
-                        </span>{" "}
+                      <p className="text-sm font-medium text-white mb-1">
                         {post.title}
                       </p>
                       <p className="text-sm text-slate-400 line-clamp-2 whitespace-pre-wrap">
@@ -855,11 +890,60 @@ export default function PostsPage() {
                         <h3 className="text-lg font-semibold text-white hover:text-[#7DE2D1] transition line-clamp-2">
                           {post.title}
                         </h3>
-                        {post.isSolved && (
-                          <span className="flex-shrink-0 px-2 py-1 bg-[#339989]/20 text-[#7DE2D1] text-xs font-medium rounded-md border border-[#339989]">
-                            해결됨
-                          </span>
-                        )}
+                        <div className="flex items-center gap-2">
+                          {post.isSolved && (
+                            <span className="flex-shrink-0 px-2 py-1 bg-[#339989]/20 text-[#7DE2D1] text-xs font-medium rounded-md border border-[#339989]">
+                              해결됨
+                            </span>
+                          )}
+                          {currentUserId !== null &&
+                            (post.userIdx === currentUserId ||
+                              post.userId === currentUserId) && (
+                              <DropdownMenu.Root>
+                                <DropdownMenu.Trigger asChild>
+                                  <button
+                                    className="text-slate-400 hover:text-white transition"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                    }}
+                                  >
+                                    <MoreHorizontal className="w-5 h-5" />
+                                  </button>
+                                </DropdownMenu.Trigger>
+                                <DropdownMenu.Portal>
+                                  <DropdownMenu.Content
+                                    className="min-w-[120px] bg-[#2B2C28] border border-[#339989]/30 rounded-lg p-1 shadow-lg z-50"
+                                    align="end"
+                                    sideOffset={5}
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                    }}
+                                  >
+                                    <DropdownMenu.Item
+                                      className="flex items-center gap-2 px-3 py-2 text-sm text-white rounded hover:bg-[#339989]/20 cursor-pointer outline-none"
+                                      onSelect={(e) => {
+                                        e.preventDefault();
+                                        editPost(post);
+                                      }}
+                                    >
+                                      <Edit className="w-4 h-4" />
+                                      수정
+                                    </DropdownMenu.Item>
+                                    <DropdownMenu.Item
+                                      className="flex items-center gap-2 px-3 py-2 text-sm text-red-400 rounded hover:bg-red-500/20 cursor-pointer outline-none"
+                                      onSelect={(e) => {
+                                        e.preventDefault();
+                                        deletePost(post.boardId);
+                                      }}
+                                    >
+                                      <Trash2 className="w-4 h-4" />
+                                      삭제
+                                    </DropdownMenu.Item>
+                                  </DropdownMenu.Content>
+                                </DropdownMenu.Portal>
+                              </DropdownMenu.Root>
+                            )}
+                        </div>
                       </div>
 
                       <p className="text-sm text-slate-400 mb-4 line-clamp-2 whitespace-pre-wrap">
