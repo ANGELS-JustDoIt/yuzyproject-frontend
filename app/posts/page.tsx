@@ -1002,6 +1002,21 @@ export default function PostsPage() {
                                 </DropdownMenu.Portal>
                               </DropdownMenu.Root>
                             )}
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleSave(post.boardId);
+                            }}
+                            className="text-slate-400 hover:text-[#7DE2D1] transition"
+                          >
+                            <Bookmark
+                              className={`w-5 h-5 ${
+                                savedPosts.has(post.boardId)
+                                  ? "fill-[#7DE2D1] text-[#7DE2D1]"
+                                  : "text-slate-400"
+                              }`}
+                            />
+                          </button>
                         </div>
                       </div>
 
@@ -1272,6 +1287,26 @@ export default function PostsPage() {
             <div className="p-6 border-b border-[#2B2C28] flex items-center justify-between sticky top-0 bg-[#1a1a18] z-10">
               <h2 className="text-xl font-bold text-white">게시글 상세</h2>
               <div className="flex items-center gap-2">
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleSave(selectedPost.boardId);
+                  }}
+                  className="p-2 hover:bg-[#2B2C28] rounded transition"
+                  title={
+                    savedPosts.has(selectedPost.boardId)
+                      ? "스크랩 취소"
+                      : "스크랩"
+                  }
+                >
+                  <Bookmark
+                    className={`w-5 h-5 ${
+                      savedPosts.has(selectedPost.boardId)
+                        ? "fill-[#7DE2D1] text-[#7DE2D1]"
+                        : "text-slate-400"
+                    }`}
+                  />
+                </button>
                 {currentUserId !== null &&
                   ((selectedPost.userIdx !== undefined &&
                     selectedPost.userIdx === currentUserId) ||
