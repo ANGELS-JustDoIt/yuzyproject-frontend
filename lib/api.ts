@@ -385,31 +385,15 @@ export const myApi = {
     });
   },
 
-  // 스크랩 삭제
+  // 스크랩 삭제 (POST 토글 사용 - 백엔드가 DELETE를 지원하지 않음)
   deleteScrap: async (boardId: number) => {
-    // DELETE 엔드포인트가 있으면 사용, 없으면 POST 토글 사용
-    try {
-      return await apiCall<{ message: string; isScrapped: boolean }>(
-        `/my/scraps/${boardId}`,
-        {
-          method: "DELETE",
-        }
-      );
-    } catch (error: any) {
-      // DELETE가 404면 POST 토글 사용 (기존 방식)
-      if (
-        error.message?.includes("404") ||
-        error.message?.includes("Not Found")
-      ) {
-        return await apiCall<{ message: string; isScrapped: boolean }>(
-          `/my/scraps/${boardId}`,
-          {
-            method: "POST",
-          }
-        );
+    // 백엔드는 POST로 스크랩 토글을 처리하므로 POST 사용
+    return await apiCall<{ message: string; isScrapped: boolean }>(
+      `/my/scraps/${boardId}`,
+      {
+        method: "POST",
       }
-      throw error;
-    }
+    );
   },
 
   getNotifications: async () => {
