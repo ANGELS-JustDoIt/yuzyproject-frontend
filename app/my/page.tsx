@@ -239,6 +239,7 @@ export default function MyPage() {
   const [editingScrapPostFiles, setEditingScrapPostFiles] = useState<any[]>([]);
   const [scrapFilesToDelete, setScrapFilesToDelete] = useState<number[]>([]);
   const [scrapPostComments, setScrapPostComments] = useState<any[]>([]);
+  const [deleteProfileImage, setDeleteProfileImage] = useState(false);
   const [scrapPostLiked, setScrapPostLiked] = useState(false);
   const [scrapCommentText, setScrapCommentText] = useState("");
   const [currentUserId, setCurrentUserId] = useState<number | null>(null);
@@ -1244,7 +1245,20 @@ export default function MyPage() {
                   {member?.hope_job || ""}
                 </p>
                 <button
-                  onClick={() => setActiveSection("profile")}
+                  onClick={() => {
+                    setActiveSection("profile");
+                    // 회원정보 수정 섹션으로 스크롤
+                    setTimeout(() => {
+                      const profileSection =
+                        document.getElementById("profile-section");
+                      if (profileSection) {
+                        profileSection.scrollIntoView({
+                          behavior: "smooth",
+                          block: "start",
+                        });
+                      }
+                    }, 100);
+                  }}
                   className="text-sm text-[#339989] hover:text-[#7DE2D1] transition flex items-center gap-1"
                 >
                   <User className="w-4 h-4" />
@@ -1763,7 +1777,10 @@ export default function MyPage() {
 
             {/* 회원정보 수정 */}
             {activeSection === "profile" && (
-              <div className="bg-[#1a1a18] border border-[#2B2C28] rounded-lg p-6 mb-8">
+              <div
+                id="profile-section"
+                className="bg-[#1a1a18] border border-[#2B2C28] rounded-lg p-6 mb-8"
+              >
                 <h2 className="text-xl font-bold text-white mb-6">
                   회원정보 수정
                 </h2>
@@ -1813,14 +1830,24 @@ export default function MyPage() {
                         if (profileImage && profileImage.size > 0) {
                           formDataToSend.append("profileImage", profileImage);
                         }
+                        // 프로필 이미지 삭제 플래그
+                        if (deleteProfileImage) {
+                          formDataToSend.append("deleteProfileImage", "true");
+                        }
 
                         // FormData에 데이터가 있으면 FormData로 전송, 아니면 JSON으로 전송
                         const hasData =
                           Object.keys(updateData).length > 0 ||
-                          (profileImage && profileImage.size > 0);
+                          (profileImage && profileImage.size > 0) ||
+                          deleteProfileImage;
                         if (hasData) {
                           const result =
                             profileImage && profileImage.size > 0
+                              ? await myApi.updateProfile(
+                                  updateData,
+                                  formDataToSend
+                                )
+                              : deleteProfileImage
                               ? await myApi.updateProfile(
                                   updateData,
                                   formDataToSend
@@ -1849,8 +1876,11 @@ export default function MyPage() {
                               profile_image_url:
                                 result.profile.profileImageUrl ||
                                 result.profile.profile_image_url ||
-                                member?.profile_image_url,
+                                (deleteProfileImage
+                                  ? undefined
+                                  : member?.profile_image_url),
                             });
+                            setDeleteProfileImage(false);
                             alert("프로필이 성공적으로 업데이트되었습니다.");
                             setActiveSection(null);
                           }
@@ -1894,11 +1924,52 @@ export default function MyPage() {
                       <label className="block text-sm font-medium text-slate-400 mb-2">
                         프로필 사진
                       </label>
+                      {member?.profile_image_url && !deleteProfileImage && (
+                        <div className="mb-2 flex items-center gap-3">
+                          <img
+                            src={
+                              member.profile_image_url.startsWith("http")
+                                ? member.profile_image_url
+                                : `${API_BASE_URL}${member.profile_image_url}`
+                            }
+                            alt="프로필 사진"
+                            className="w-16 h-16 rounded-full object-cover border border-[#2B2C28]"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => setDeleteProfileImage(true)}
+                            className="px-3 py-1 text-xs bg-red-500/20 text-red-400 rounded hover:bg-red-500/30 transition flex items-center gap-1"
+                          >
+                            <Trash2 className="w-3 h-3" />
+                            삭제
+                          </button>
+                        </div>
+                      )}
+                      {deleteProfileImage && (
+                        <div className="mb-2 flex items-center gap-2">
+                          <span className="text-sm text-slate-400">
+                            프로필 사진이 삭제 예정입니다
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => setDeleteProfileImage(false)}
+                            className="px-2 py-1 text-xs bg-slate-700 text-slate-300 rounded hover:bg-slate-600 transition"
+                          >
+                            취소
+                          </button>
+                        </div>
+                      )}
                       <input
                         type="file"
                         name="profileImage"
                         accept="image/*"
                         className="w-full bg-[#131515] border border-[#2B2C28] rounded-lg px-4 py-2 text-white focus:outline-none focus:border-[#339989] transition file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-[#339989] file:text-white hover:file:bg-[#7DE2D1] cursor-pointer"
+                        onChange={(e) => {
+                          // 새 이미지 선택 시 삭제 플래그 해제
+                          if (e.target.files && e.target.files.length > 0) {
+                            setDeleteProfileImage(false);
+                          }
+                        }}
                       />
                     </div>
 
