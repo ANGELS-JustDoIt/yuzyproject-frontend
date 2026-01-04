@@ -199,12 +199,12 @@ const mockNotifications: Noti[] = [
 export default function MyPage() {
   // 인증 체크 - 토큰이 없으면 로그인 페이지로 즉시 리다이렉트
   useRequireAuth();
-  
+
   // 클라이언트 사이드에서 즉시 체크하여 페이지가 보이는 것을 방지
   if (typeof window !== "undefined" && !getToken()) {
     return null; // 리다이렉트 중이므로 아무것도 렌더링하지 않음
   }
-  
+
   const router = useRouter();
   const [member, setMember] = useState<Member | null>(null);
   const [grassData, setGrassData] = useState<Grass[]>([]);
@@ -236,6 +236,8 @@ export default function MyPage() {
   );
   const [showScrapPostModal, setShowScrapPostModal] = useState(false);
   const [editingScrapPost, setEditingScrapPost] = useState<Scrap | null>(null);
+  const [editingScrapPostFiles, setEditingScrapPostFiles] = useState<any[]>([]);
+  const [scrapFilesToDelete, setScrapFilesToDelete] = useState<number[]>([]);
   const [scrapPostComments, setScrapPostComments] = useState<any[]>([]);
   const [scrapPostLiked, setScrapPostLiked] = useState(false);
   const [scrapCommentText, setScrapCommentText] = useState("");
@@ -539,7 +541,7 @@ export default function MyPage() {
 
   // 전체 일수 계산 (윤년 여부 확인)
   const isLeapYear = (year: number) => {
-    return (year % 4 === 0 && year % 100 !== 0) || (year % 400 === 0);
+    return (year % 4 === 0 && year % 100 !== 0) || year % 400 === 0;
   };
   const totalDays = isLeapYear(targetYear) ? 366 : 365;
 
@@ -987,9 +989,20 @@ export default function MyPage() {
   };
 
   // 스크랩 게시글 수정
-  const editScrapPost = (scrap: Scrap) => {
+  const editScrapPost = async (scrap: Scrap) => {
     setEditingScrapPost(scrap);
     setShowScrapPostModal(false);
+    setScrapFilesToDelete([]); // 삭제할 파일 목록 초기화
+
+    // 기존 파일 목록 가져오기
+    try {
+      const boardId = scrap.boardId || scrap.board_id;
+      const postResponse = await postApi.getPost(boardId);
+      setEditingScrapPostFiles(postResponse.files || []);
+    } catch (error) {
+      console.error("파일 목록 조회 실패:", error);
+      setEditingScrapPostFiles([]);
+    }
   };
 
   // 스크랩 게시글 삭제
@@ -1126,11 +1139,18 @@ export default function MyPage() {
       }
     });
 
+    // 삭제할 파일 ID 목록 추가
+    if (scrapFilesToDelete.length > 0) {
+      apiFormData.append("deleteFileIds", JSON.stringify(scrapFilesToDelete));
+    }
+
     try {
       const boardId = editingScrapPost.boardId || editingScrapPost.board_id;
       await postApi.update(boardId, apiFormData);
       alert("게시글이 성공적으로 수정되었습니다.");
       setEditingScrapPost(null);
+      setEditingScrapPostFiles([]);
+      setScrapFilesToDelete([]);
       // 스크랩 목록 새로고침
       await refreshScraps();
     } catch (error: any) {
@@ -1146,14 +1166,20 @@ export default function MyPage() {
       <div className="fixed top-20 right-6 z-40">
         <button
           onClick={() => {
-            const newSection = activeSection === "notifications" ? null : "notifications";
+            const newSection =
+              activeSection === "notifications" ? null : "notifications";
             setActiveSection(newSection);
             // 알림 섹션으로 스크롤 이동
             if (newSection === "notifications") {
               setTimeout(() => {
-                const notificationsSection = document.getElementById("notifications-section");
+                const notificationsSection = document.getElementById(
+                  "notifications-section"
+                );
                 if (notificationsSection) {
-                  notificationsSection.scrollIntoView({ behavior: "smooth", block: "start" });
+                  notificationsSection.scrollIntoView({
+                    behavior: "smooth",
+                    block: "start",
+                  });
                 }
               }, 100); // 섹션이 렌더링된 후 스크롤
             }
@@ -1344,14 +1370,22 @@ export default function MyPage() {
 
                 <button
                   onClick={() => {
-                    const newSection = activeSection === "notifications" ? null : "notifications";
+                    const newSection =
+                      activeSection === "notifications"
+                        ? null
+                        : "notifications";
                     setActiveSection(newSection);
                     // 알림 섹션으로 스크롤 이동
                     if (newSection === "notifications") {
                       setTimeout(() => {
-                        const notificationsSection = document.getElementById("notifications-section");
+                        const notificationsSection = document.getElementById(
+                          "notifications-section"
+                        );
                         if (notificationsSection) {
-                          notificationsSection.scrollIntoView({ behavior: "smooth", block: "start" });
+                          notificationsSection.scrollIntoView({
+                            behavior: "smooth",
+                            block: "start",
+                          });
                         }
                       }, 100); // 섹션이 렌더링된 후 스크롤
                     }
@@ -1495,7 +1529,10 @@ export default function MyPage() {
 
             {/* 알림 섹션 */}
             {activeSection === "notifications" && (
-              <div id="notifications-section" className="bg-[#1a1a18] border border-[#2B2C28] rounded-lg p-6 mb-8">
+              <div
+                id="notifications-section"
+                className="bg-[#1a1a18] border border-[#2B2C28] rounded-lg p-6 mb-8"
+              >
                 <h2 className="text-xl font-bold text-white mb-4">알림</h2>
                 <div className="space-y-3">
                   {notifications.map((notification) => (
@@ -2149,12 +2186,14 @@ export default function MyPage() {
       {/* 스크랩 게시글 수정 모달 */}
       {editingScrapPost && (
         <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
-          <div className="bg-[#1a1a18] border border-[#2B2C28] rounded-lg w-full max-w-2xl">
-            <div className="p-6 border-b border-[#2B2C28] flex items-center justify-between">
+          <div className="bg-[#1a1a18] border border-[#2B2C28] rounded-lg w-full max-w-2xl max-h-[90vh] flex flex-col">
+            <div className="p-6 border-b border-[#2B2C28] flex items-center justify-between flex-shrink-0">
               <h2 className="text-xl font-bold text-white">게시글 수정</h2>
               <Button
                 onClick={() => {
                   setEditingScrapPost(null);
+                  setEditingScrapPostFiles([]);
+                  setScrapFilesToDelete([]);
                 }}
                 className="p-2 hover:bg-[#2B2C28] rounded transition"
               >
@@ -2162,62 +2201,132 @@ export default function MyPage() {
               </Button>
             </div>
 
-            <form onSubmit={saveScrapPost} className="p-6 space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-slate-400 mb-2">
-                  제목
-                </label>
-                <input
-                  type="text"
-                  name="title"
-                  defaultValue={editingScrapPost.title || ""}
-                  required
-                  className="w-full bg-[#131515] border border-[#2B2C28] rounded-lg px-4 py-2 text-white focus:outline-none focus:border-[#339989] transition"
-                />
+            <form
+              onSubmit={saveScrapPost}
+              className="flex flex-col flex-1 min-h-0"
+            >
+              <div className="p-6 space-y-4 overflow-y-auto flex-1">
+                <div>
+                  <label className="block text-sm font-medium text-slate-400 mb-2">
+                    제목
+                  </label>
+                  <input
+                    type="text"
+                    name="title"
+                    defaultValue={editingScrapPost.title || ""}
+                    required
+                    className="w-full bg-[#131515] border border-[#2B2C28] rounded-lg px-4 py-2 text-white focus:outline-none focus:border-[#339989] transition"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-slate-400 mb-2">
+                    내용
+                  </label>
+                  <textarea
+                    name="content"
+                    defaultValue={editingScrapPost.content || ""}
+                    required
+                    rows={6}
+                    className="w-full bg-[#131515] border border-[#2B2C28] rounded-lg px-4 py-2 text-white resize-none focus:outline-none focus:border-[#339989] transition"
+                  />
+                </div>
+
+                {/* 기존 파일 표시 */}
+                {editingScrapPostFiles.length > 0 && (
+                  <div>
+                    <label className="block text-sm font-medium text-slate-400 mb-2">
+                      기존 파일
+                    </label>
+                    <div className="space-y-2">
+                      {editingScrapPostFiles.map((file: any) => {
+                        const isMarkedForDelete = scrapFilesToDelete.includes(
+                          file.fileKey
+                        );
+                        return (
+                          <div
+                            key={file.fileKey}
+                            className={`flex items-center gap-3 p-3 bg-[#131515] border rounded-lg ${
+                              isMarkedForDelete
+                                ? "border-red-500/50 opacity-50"
+                                : "border-[#2B2C28]"
+                            }`}
+                          >
+                            {file.isMainImage && (
+                              <span className="text-xs px-2 py-1 bg-[#339989] text-white rounded">
+                                메인 이미지
+                              </span>
+                            )}
+                            <span className="text-sm text-slate-300 flex-1 truncate">
+                              {file.fileName}
+                            </span>
+                            {!isMarkedForDelete ? (
+                              <Button
+                                type="button"
+                                onClick={() => {
+                                  setScrapFilesToDelete([
+                                    ...scrapFilesToDelete,
+                                    file.fileKey,
+                                  ]);
+                                }}
+                                className="px-2 py-1 text-xs bg-red-500/20 text-red-400 rounded hover:bg-red-500/30 transition"
+                              >
+                                <Trash2 className="w-3 h-3" />
+                              </Button>
+                            ) : (
+                              <Button
+                                type="button"
+                                onClick={() => {
+                                  setScrapFilesToDelete(
+                                    scrapFilesToDelete.filter(
+                                      (id) => id !== file.fileKey
+                                    )
+                                  );
+                                }}
+                                className="px-2 py-1 text-xs bg-slate-700 text-slate-300 rounded hover:bg-slate-600 transition"
+                              >
+                                취소
+                              </Button>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+
+                <div>
+                  <label className="block text-sm font-medium text-slate-400 mb-2">
+                    새 메인 이미지 (선택, 기존 이미지 교체)
+                  </label>
+                  <input
+                    type="file"
+                    name="mainImage"
+                    accept="image/*"
+                    className="w-full bg-[#131515] border border-[#2B2C28] rounded-lg px-4 py-2 text-white focus:outline-none focus:border-[#339989] transition"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-slate-400 mb-2">
+                    새 첨부 파일 (선택, 여러 개 가능)
+                  </label>
+                  <input
+                    type="file"
+                    name="files"
+                    multiple
+                    className="w-full bg-[#131515] border border-[#2B2C28] rounded-lg px-4 py-2 text-white focus:outline-none focus:border-[#339989] transition"
+                  />
+                </div>
               </div>
 
-              <div>
-                <label className="block text-sm font-medium text-slate-400 mb-2">
-                  내용
-                </label>
-                <textarea
-                  name="content"
-                  defaultValue={editingScrapPost.content || ""}
-                  required
-                  rows={6}
-                  className="w-full bg-[#131515] border border-[#2B2C28] rounded-lg px-4 py-2 text-white resize-none focus:outline-none focus:border-[#339989] transition"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-slate-400 mb-2">
-                  메인 이미지 (선택)
-                </label>
-                <input
-                  type="file"
-                  name="mainImage"
-                  accept="image/*"
-                  className="w-full bg-[#131515] border border-[#2B2C28] rounded-lg px-4 py-2 text-white focus:outline-none focus:border-[#339989] transition"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-slate-400 mb-2">
-                  첨부 파일 (선택, 여러 개 가능)
-                </label>
-                <input
-                  type="file"
-                  name="files"
-                  multiple
-                  className="w-full bg-[#131515] border border-[#2B2C28] rounded-lg px-4 py-2 text-white focus:outline-none focus:border-[#339989] transition"
-                />
-              </div>
-
-              <div className="flex justify-end gap-3 pt-4">
+              <div className="p-6 border-t border-[#2B2C28] flex justify-end gap-3 flex-shrink-0">
                 <Button
                   type="button"
                   onClick={() => {
                     setEditingScrapPost(null);
+                    setEditingScrapPostFiles([]);
+                    setScrapFilesToDelete([]);
                   }}
                   className="px-4 py-2 text-slate-400 hover:text-white transition"
                 >

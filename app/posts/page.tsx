@@ -104,6 +104,10 @@ export default function PostsPage() {
     []
   );
   const [editingPost, setEditingPost] = useState<Post | null>(null);
+  const [editingPostFiles, setEditingPostFiles] = useState<FileAttachment[]>(
+    []
+  );
+  const [filesToDelete, setFilesToDelete] = useState<number[]>([]);
   const [currentPage, setCurrentPage] = useState(1);
   const [posts, setPosts] = useState<Post[]>([]);
   const [loading, setLoading] = useState(true);
@@ -395,7 +399,7 @@ export default function PostsPage() {
     setShowWriteModal(true);
   };
 
-  const editPost = (post: Post) => {
+  const editPost = async (post: Post) => {
     setEditingPost(post);
     setShowDetailModal(false); // 상세보기 모달 닫기
     setSelectedPost(null);
@@ -403,6 +407,17 @@ export default function PostsPage() {
     setSelectedPostComments([]);
     setLoadingComments(false);
     setCommentsError(null);
+    setFilesToDelete([]); // 삭제할 파일 목록 초기화
+
+    // 기존 파일 목록 가져오기
+    try {
+      const postResponse = await postApi.getPost(post.boardId);
+      setEditingPostFiles(postResponse.files || []);
+    } catch (error) {
+      console.error("파일 목록 조회 실패:", error);
+      setEditingPostFiles([]);
+    }
+
     setShowWriteModal(true); // 수정 모달 열기
   };
 
@@ -473,8 +488,10 @@ export default function PostsPage() {
 
       if (editingPost) {
         // 수정 모드
-        // 삭제할 파일 ID 목록 (현재는 구현하지 않음, 필요시 추가)
-        // apiFormData.append("deleteFileIds", JSON.stringify([]));
+        // 삭제할 파일 ID 목록 추가
+        if (filesToDelete.length > 0) {
+          apiFormData.append("deleteFileIds", JSON.stringify(filesToDelete));
+        }
         await postApi.update(editingPost.boardId, apiFormData);
         alert("게시글이 성공적으로 수정되었습니다.");
       } else {
@@ -485,6 +502,8 @@ export default function PostsPage() {
 
       setShowWriteModal(false);
       setEditingPost(null);
+      setEditingPostFiles([]);
+      setFilesToDelete([]);
       fetchPosts(); // 목록 새로고침
     } catch (error: any) {
       alert(error.message || "게시글 저장에 실패했습니다.");
@@ -1061,8 +1080,8 @@ export default function PostsPage() {
       {/* 글쓰기 모달 */}
       {showWriteModal && (
         <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
-          <div className="bg-[#1a1a18] border border-[#2B2C28] rounded-lg w-full max-w-2xl">
-            <div className="p-6 border-b border-[#2B2C28] flex items-center justify-between">
+          <div className="bg-[#1a1a18] border border-[#2B2C28] rounded-lg w-full max-w-2xl max-h-[90vh] flex flex-col">
+            <div className="p-6 border-b border-[#2B2C28] flex items-center justify-between flex-shrink-0">
               <h2 className="text-xl font-bold text-white">
                 {editingPost
                   ? "게시글 수정"
@@ -1074,6 +1093,8 @@ export default function PostsPage() {
                 onClick={() => {
                   setShowWriteModal(false);
                   setEditingPost(null);
+                  setEditingPostFiles([]);
+                  setFilesToDelete([]);
                 }}
                 className="p-2 hover:bg-[#2B2C28] rounded transition"
               >
@@ -1081,63 +1102,134 @@ export default function PostsPage() {
               </Button>
             </div>
 
-            <form onSubmit={savePost} className="p-6 space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-slate-400 mb-2">
-                  제목
-                </label>
-                <input
-                  type="text"
-                  name="title"
-                  defaultValue={editingPost?.title || ""}
-                  required
-                  className="w-full bg-[#131515] border border-[#2B2C28] rounded-lg px-4 py-2 text-white focus:outline-none focus:border-[#339989] transition"
-                />
+            <form onSubmit={savePost} className="flex flex-col flex-1 min-h-0">
+              <div className="p-6 space-y-4 overflow-y-auto flex-1">
+                <div>
+                  <label className="block text-sm font-medium text-slate-400 mb-2">
+                    제목
+                  </label>
+                  <input
+                    type="text"
+                    name="title"
+                    defaultValue={editingPost?.title || ""}
+                    required
+                    className="w-full bg-[#131515] border border-[#2B2C28] rounded-lg px-4 py-2 text-white focus:outline-none focus:border-[#339989] transition"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-slate-400 mb-2">
+                    내용
+                  </label>
+                  <textarea
+                    name="content"
+                    defaultValue={editingPost?.content || ""}
+                    required
+                    rows={6}
+                    className="w-full bg-[#131515] border border-[#2B2C28] rounded-lg px-4 py-2 text-white resize-none focus:outline-none focus:border-[#339989] transition"
+                  />
+                </div>
+
+                {/* 기존 파일 표시 (수정 모드일 때만) */}
+                {editingPost && editingPostFiles.length > 0 && (
+                  <div>
+                    <label className="block text-sm font-medium text-slate-400 mb-2">
+                      기존 파일
+                    </label>
+                    <div className="space-y-2">
+                      {editingPostFiles.map((file) => {
+                        const isMarkedForDelete = filesToDelete.includes(
+                          file.fileKey
+                        );
+                        return (
+                          <div
+                            key={file.fileKey}
+                            className={`flex items-center gap-3 p-3 bg-[#131515] border rounded-lg ${
+                              isMarkedForDelete
+                                ? "border-red-500/50 opacity-50"
+                                : "border-[#2B2C28]"
+                            }`}
+                          >
+                            {file.isMainImage && (
+                              <span className="text-xs px-2 py-1 bg-[#339989] text-white rounded">
+                                메인 이미지
+                              </span>
+                            )}
+                            <span className="text-sm text-slate-300 flex-1 truncate">
+                              {file.fileName}
+                            </span>
+                            {!isMarkedForDelete ? (
+                              <Button
+                                type="button"
+                                onClick={() => {
+                                  setFilesToDelete([
+                                    ...filesToDelete,
+                                    file.fileKey,
+                                  ]);
+                                }}
+                                className="px-2 py-1 text-xs bg-red-500/20 text-red-400 rounded hover:bg-red-500/30 transition"
+                              >
+                                <Trash2 className="w-3 h-3" />
+                              </Button>
+                            ) : (
+                              <Button
+                                type="button"
+                                onClick={() => {
+                                  setFilesToDelete(
+                                    filesToDelete.filter(
+                                      (id) => id !== file.fileKey
+                                    )
+                                  );
+                                }}
+                                className="px-2 py-1 text-xs bg-slate-700 text-slate-300 rounded hover:bg-slate-600 transition"
+                              >
+                                취소
+                              </Button>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+
+                <div>
+                  <label className="block text-sm font-medium text-slate-400 mb-2">
+                    {editingPost
+                      ? "새 메인 이미지 (선택, 기존 이미지 교체)"
+                      : "메인 이미지 (선택)"}
+                  </label>
+                  <input
+                    type="file"
+                    name="mainImage"
+                    accept="image/*"
+                    className="w-full bg-[#131515] border border-[#2B2C28] rounded-lg px-4 py-2 text-white focus:outline-none focus:border-[#339989] transition"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-slate-400 mb-2">
+                    {editingPost
+                      ? "새 첨부 파일 (선택, 여러 개 가능)"
+                      : "첨부 파일 (선택, 여러 개 가능)"}
+                  </label>
+                  <input
+                    type="file"
+                    name="files"
+                    multiple
+                    className="w-full bg-[#131515] border border-[#2B2C28] rounded-lg px-4 py-2 text-white focus:outline-none focus:border-[#339989] transition"
+                  />
+                </div>
               </div>
 
-              <div>
-                <label className="block text-sm font-medium text-slate-400 mb-2">
-                  내용
-                </label>
-                <textarea
-                  name="content"
-                  defaultValue={editingPost?.content || ""}
-                  required
-                  rows={6}
-                  className="w-full bg-[#131515] border border-[#2B2C28] rounded-lg px-4 py-2 text-white resize-none focus:outline-none focus:border-[#339989] transition"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-slate-400 mb-2">
-                  메인 이미지 (선택)
-                </label>
-                <input
-                  type="file"
-                  name="mainImage"
-                  accept="image/*"
-                  className="w-full bg-[#131515] border border-[#2B2C28] rounded-lg px-4 py-2 text-white focus:outline-none focus:border-[#339989] transition"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-slate-400 mb-2">
-                  첨부 파일 (선택, 여러 개 가능)
-                </label>
-                <input
-                  type="file"
-                  name="files"
-                  multiple
-                  className="w-full bg-[#131515] border border-[#2B2C28] rounded-lg px-4 py-2 text-white focus:outline-none focus:border-[#339989] transition"
-                />
-              </div>
-
-              <div className="flex justify-end gap-3 pt-4">
+              <div className="p-6 border-t border-[#2B2C28] flex justify-end gap-3 flex-shrink-0">
                 <Button
                   type="button"
                   onClick={() => {
                     setShowWriteModal(false);
                     setEditingPost(null);
+                    setEditingPostFiles([]);
+                    setFilesToDelete([]);
                   }}
                   className="px-4 py-2 text-slate-400 hover:text-white transition"
                 >
