@@ -1332,12 +1332,17 @@ export default function MyPage() {
                         return (
                           <div
                             key={dayIndex}
-                            className="w-full aspect-square rounded-[2px] cursor-pointer hover:ring-2 hover:ring-[#7DE2D1] transition"
+                            className="relative group w-full aspect-square rounded-[2px] cursor-pointer hover:ring-2 hover:ring-[#7DE2D1] transition"
                             style={{
                               backgroundColor: getGrassColor(score, month),
                             }}
-                            title={`${dateString}\n${activityText}`}
-                          />
+                          >
+                            <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-2 py-1 bg-[#1a1a18] border border-[#339989] rounded text-xs text-white opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-50 whitespace-nowrap">
+                              {dateString}
+                              <br />
+                              {activityText}
+                            </div>
+                          </div>
                         );
                       })}
                     </div>
