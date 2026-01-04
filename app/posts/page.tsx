@@ -950,58 +950,58 @@ export default function PostsPage() {
                           {post.title}
                         </h3>
                         <div className="flex items-center gap-2">
-                          {post.isSolved && (
+                          {post.isSolved ? (
                             <span className="flex-shrink-0 px-2 py-1 bg-[#339989]/20 text-[#7DE2D1] text-xs font-medium rounded-md border border-[#339989]">
                               해결됨
                             </span>
-                          )}
+                          ) : null}
                           {currentUserId !== null &&
-                            (post.userIdx === currentUserId ||
-                              post.userId === currentUserId) && (
-                              <DropdownMenu.Root>
-                                <DropdownMenu.Trigger asChild>
-                                  <button
-                                    className="text-slate-400 hover:text-white transition"
-                                    onClick={(e) => {
-                                      e.stopPropagation();
+                          (post.userIdx === currentUserId ||
+                            post.userId === currentUserId) ? (
+                            <DropdownMenu.Root>
+                              <DropdownMenu.Trigger asChild>
+                                <button
+                                  className="text-slate-400 hover:text-white transition"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                  }}
+                                >
+                                  <MoreHorizontal className="w-5 h-5" />
+                                </button>
+                              </DropdownMenu.Trigger>
+                              <DropdownMenu.Portal>
+                                <DropdownMenu.Content
+                                  className="min-w-[120px] bg-[#2B2C28] border border-[#339989]/30 rounded-lg p-1 shadow-lg z-50"
+                                  align="end"
+                                  sideOffset={5}
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                  }}
+                                >
+                                  <DropdownMenu.Item
+                                    className="flex items-center gap-2 px-3 py-2 text-sm text-white rounded hover:bg-[#339989]/20 cursor-pointer outline-none"
+                                    onSelect={(e) => {
+                                      e.preventDefault();
+                                      editPost(post);
                                     }}
                                   >
-                                    <MoreHorizontal className="w-5 h-5" />
-                                  </button>
-                                </DropdownMenu.Trigger>
-                                <DropdownMenu.Portal>
-                                  <DropdownMenu.Content
-                                    className="min-w-[120px] bg-[#2B2C28] border border-[#339989]/30 rounded-lg p-1 shadow-lg z-50"
-                                    align="end"
-                                    sideOffset={5}
-                                    onClick={(e) => {
-                                      e.stopPropagation();
+                                    <Edit className="w-4 h-4" />
+                                    수정
+                                  </DropdownMenu.Item>
+                                  <DropdownMenu.Item
+                                    className="flex items-center gap-2 px-3 py-2 text-sm text-red-400 rounded hover:bg-red-500/20 cursor-pointer outline-none"
+                                    onSelect={(e) => {
+                                      e.preventDefault();
+                                      deletePost(post.boardId);
                                     }}
                                   >
-                                    <DropdownMenu.Item
-                                      className="flex items-center gap-2 px-3 py-2 text-sm text-white rounded hover:bg-[#339989]/20 cursor-pointer outline-none"
-                                      onSelect={(e) => {
-                                        e.preventDefault();
-                                        editPost(post);
-                                      }}
-                                    >
-                                      <Edit className="w-4 h-4" />
-                                      수정
-                                    </DropdownMenu.Item>
-                                    <DropdownMenu.Item
-                                      className="flex items-center gap-2 px-3 py-2 text-sm text-red-400 rounded hover:bg-red-500/20 cursor-pointer outline-none"
-                                      onSelect={(e) => {
-                                        e.preventDefault();
-                                        deletePost(post.boardId);
-                                      }}
-                                    >
-                                      <Trash2 className="w-4 h-4" />
-                                      삭제
-                                    </DropdownMenu.Item>
-                                  </DropdownMenu.Content>
-                                </DropdownMenu.Portal>
-                              </DropdownMenu.Root>
-                            )}
+                                    <Trash2 className="w-4 h-4" />
+                                    삭제
+                                  </DropdownMenu.Item>
+                                </DropdownMenu.Content>
+                              </DropdownMenu.Portal>
+                            </DropdownMenu.Root>
+                          ) : null}
                           <button
                             onClick={(e) => {
                               e.stopPropagation();
