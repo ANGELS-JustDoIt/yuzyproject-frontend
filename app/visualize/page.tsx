@@ -494,7 +494,7 @@ export default function VisualizePage() {
                     </button>
                   </div>
                   <div className="relative overflow-hidden rounded">
-                    <div className="overflow-x-auto max-h-96 overflow-y-auto">
+                    <div className="overflow-x-auto max-h-96 overflow-y-auto hide-scrollbar">
                       <pre className="text-sm text-slate-200 font-mono whitespace-pre break-words leading-relaxed m-0">
                         <code className="block">
                           {highlightCode(item.code)}
