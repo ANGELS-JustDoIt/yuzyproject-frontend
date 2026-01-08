@@ -4,7 +4,7 @@ import type React from "react";
 
 import { Button } from "@/components/ui/button";
 import { ArrowRight, Code2, Zap, Eye, MessageSquare, X } from "lucide-react";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { getToken } from "@/lib/api";
 import Header from "@/components/Header";
@@ -13,6 +13,7 @@ export default function Home() {
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const router = useRouter();
+  const videoRef = useRef<HTMLVideoElement>(null);
 
   // 로그인 상태 확인
   useEffect(() => {
@@ -280,11 +281,24 @@ export default function Home() {
           <div className="grid md:grid-cols-2 gap-16 items-center">
             <div>
               <div className="rounded-xl overflow-hidden border border-[#2B2C28] bg-[#1a1a18]">
-                <img
-                  src="/code-flow-diagram-visualization-network-graph-stru.jpg"
-                  alt="코드 흐름 시각화"
-                  className="w-full h-auto"
-                />
+                <video
+                  ref={videoRef}
+                  src="/man.mp4"
+                  autoPlay
+                  loop
+                  muted
+                  playsInline
+                  className="w-full h-auto pointer-events-none"
+                  onPause={(e) => {
+                    e.preventDefault();
+                    if (videoRef.current) {
+                      videoRef.current.play();
+                    }
+                  }}
+                  onContextMenu={(e) => e.preventDefault()}
+                >
+                  브라우저가 비디오 태그를 지원하지 않습니다.
+                </video>
               </div>
             </div>
             {/* 텍스트 */}
